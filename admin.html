@@ -1426,29 +1426,31 @@
             }
         }
 
-        // ==========================================
+// ==========================================
         // SINKRONISASI SUPABASE MENGGUNAKAN NATIVE FETCH (100% ANTI GAGAL)
         // ==========================================
-        const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co;
-        const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl;
+        const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl';
 
         function cleanDataForCloud(obj) {
             const clone = JSON.parse(JSON.stringify(obj));
+            // Biarkan URL publik & base64 hasil kompresi (<350KB) tetap ikut ke cloud agar tampil di semua device
+            const maxInlineLen = 350000;
             ['promos', 'studios', 'frames', 'services', 'locations'].forEach(arr => {
                 if (Array.isArray(clone[arr])) {
                     clone[arr].forEach(item => {
-                        if (item.img && item.img.startsWith('data:image')) {
-                            item.img = ''; 
+                        if (item.img && item.img.startsWith('data:image') && item.img.length > maxInlineLen) {
+                            item.img = '';
                         }
                     });
                 }
             });
             if (clone.banners) {
                 Object.keys(clone.banners).forEach(k => {
-                    if (clone.banners[k].imgUrl && clone.banners[k].imgUrl.startsWith('data:image')) {
+                    if (clone.banners[k].imgUrl && clone.banners[k].imgUrl.startsWith('data:image') && clone.banners[k].imgUrl.length > maxInlineLen) {
                         clone.banners[k].imgUrl = '';
                     }
-                    if (clone.banners[k].aboutImgUrl && clone.banners[k].aboutImgUrl.startsWith('data:image')) {
+                    if (clone.banners[k].aboutImgUrl && clone.banners[k].aboutImgUrl.startsWith('data:image') && clone.banners[k].aboutImgUrl.length > maxInlineLen) {
                         clone.banners[k].aboutImgUrl = '';
                     }
                 });
@@ -1465,7 +1467,10 @@
             
             try {
                 const cleanPayload = cleanDataForCloud(cmsData);
-                await OhSnapCloud.save(cleanPayload);
+                const savedCloud = await OhSnapCloud.save(cleanPayload);
+                if (savedCloud && savedCloud.lastUpdated) {
+                    cmsData.lastUpdated = savedCloud.lastUpdated;
+                }
                 markSynced(cmsData);
                 showToast('✅ Berhasil disimpan & disinkronkan ke semua perangkat secara global!');
             } catch (err) {
@@ -1480,36 +1485,30 @@
             }
         }
 
-        // ---- Penanda sinkronisasi: membedakan "draft belum disimpan" vs "sudah sama dengan cloud" ----
         function comparableCMS(obj) {
             const c = cleanDataForCloud(obj);
             delete c.lastUpdated;
             return JSON.stringify(c);
         }
+
         function markSynced(obj) {
             try {
                 localStorage.setItem('ohsnap_cloud_snapshot', comparableCMS(obj));
                 localStorage.setItem('ohsnap_cloud_synced_at', String(obj.lastUpdated || Date.now()));
+                localStorage.setItem('ohsnap_cms_data', JSON.stringify(obj));
             } catch (e) {}
         }
-
-        window.addEventListener('beforeunload', () => {
-            updateBannerState();
-            updateTitlesState();
-            updateFooterState();
-            persistData();
-        });
 
         function showToast(m) { 
             const t = document.getElementById('toast'); 
             t.textContent = m; 
-            t.style.display='block'; 
-            setTimeout(() => t.style.display='none', 4000); 
+            t.style.display = 'block'; 
+            setTimeout(() => t.style.display = 'none', 4000); 
         }
 
         function logoutAdmin() { 
             localStorage.removeItem('ohsnap_admin_logged'); 
-            window.location.href='login.html'; 
+            window.location.href = 'login.html'; 
         }
 
         function initAllRenders() {
@@ -1526,7 +1525,7 @@
             renderAdminTable();
         }
 
-        // Pemuatan Instan + Background Sync Native Fetch
+        // Pemuatan Instan + Sinkronisasi Cloud Otomatis di Semua Perangkat
         document.addEventListener('DOMContentLoaded', async () => {
             let localData = loadSavedCMS();
             let idbBackup = await getMediaFromIDB('cms_full_backup');
@@ -1539,27 +1538,22 @@
             initAllRenders();
             loadResendData();
 
-            // Tarik data terbaru dari cloud
+            // Selalu tarik data terbaru dari Supabase Cloud saat halaman Admin dibuka
             try {
                 const remote = await OhSnapCloud.load(true);
-                if (remote && remote.lastUpdated) {
-                    const hasLocal = !!localStorage.getItem('ohsnap_cms_data');
-                    const snapshot = localStorage.getItem('ohsnap_cloud_snapshot');
-                    const syncedAt = Number(localStorage.getItem('ohsnap_cloud_synced_at') || 0);
-                    const isDraft = snapshot !== null && comparableCMS(cmsData) !== snapshot;
-                    const remoteIsNewer = Number(remote.lastUpdated) > syncedAt;
-
-                    if (!hasLocal || (snapshot !== null && !isDraft && remoteIsNewer)) {
-                        cmsData = mergeWithDefault(remote);
-                        cmsData.lastUpdated = Number(remote.lastUpdated);
-                        saveCMSBackupToIDB(cmsData);
-                        try { localStorage.setItem('ohsnap_cms_data', JSON.stringify(cmsData)); } catch (e) {}
-                        markSynced(cmsData);
-                        initAllRenders();
-                        showToast('☁️ Data terbaru dari cloud dimuat');
-                    } else if (isDraft && remoteIsNewer) {
-                        showToast('⚠️ Ada data baru di cloud, tapi draft di browser ini belum disimpan. Menyimpan akan menimpa cloud.');
-                    }
+                if (remote && Object.keys(remote).length > 0) {
+                    cmsData = mergeWithDefault(remote);
+                    cmsData.lastUpdated = Number(remote.lastUpdated || Date.now());
+                    saveCMSBackupToIDB(cmsData);
+                    markSynced(cmsData);
+                    initAllRenders();
+                    showToast('☁️ Terhubung ke Cloud & data terbaru berhasil disinkronkan!');
+                } else {
+                    // Jika tabel di Supabase baru masih kosong ('{}'), langsung unggah data awal otomatis
+                    const initialPayload = cleanDataForCloud(cmsData);
+                    await OhSnapCloud.save(initialPayload);
+                    markSynced(cmsData);
+                    showToast('☁️ Cloud siap! Data awal berhasil disinkronkan ke Supabase.');
                 }
             } catch (e) {
                 console.warn('Gagal menarik data cloud:', e);

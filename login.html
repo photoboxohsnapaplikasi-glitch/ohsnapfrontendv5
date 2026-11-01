@@ -76,12 +76,10 @@
         <form id="loginForm">
             <div class="form-group">
                 <label>Username</label>
-                <!-- Kolom kosong bersih tanpa teks placeholder -->
                 <input type="text" id="username" required autocomplete="off">
             </div>
             <div class="form-group">
                 <label>Password</label>
-                <!-- Kolom kosong bersih tanpa teks placeholder -->
                 <input type="password" id="password" required>
             </div>
             <button type="submit" class="btn-login">Masuk ke Dashboard</button>
@@ -89,23 +87,28 @@
         <a href="index.html" class="back-link">← Kembali ke Halaman Utama</a>
     </div>
 
+    <script src="cms-cloud.js"></script>
     <script>
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value.trim();
             const errorBox = document.getElementById('errorBox');
             errorBox.style.display = 'none';
 
-            // Ambil data admin yang tersinkronisasi dari localStorage dashboard admin
-            let storedData = JSON.parse(localStorage.getItem('ohsnap_cms_data'));
+            // Tarik daftar akun admin terbaru dari Supabase Cloud terlebih dahulu
+            try { await OhSnapCloud.pullIfNewer(); } catch (err) {}
+
+            // Ambil data admin yang tersinkronisasi dari localStorage
+            let storedData = null;
+            try { storedData = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (err) {}
             
             // Ambil daftar admin dinamis atau gunakan fallback Super Admin default
-            let adminList = storedData && storedData.admins ? storedData.admins : [
+            let adminList = storedData && Array.isArray(storedData.admins) && storedData.admins.length > 0 ? storedData.admins : [
                 { id: 1, name: 'Super Admin', username: 'admin', pass: 'ohsnap' }
             ];
 
-            // Cek pencocokan username dan password (mendukung semua akun baru maupun yang sudah tersedia)
+            // Cek pencocokan username dan password
             const found = adminList.find(a => 
                 String(a.username).trim().toLowerCase() === u.toLowerCase() && 
                 String(a.pass || a.password).trim() === p
