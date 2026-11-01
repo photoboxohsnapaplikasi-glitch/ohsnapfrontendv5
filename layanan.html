@@ -43,7 +43,6 @@
         .hero-banner-content h1 span { color: #ff69b4; }
         .hero-banner-content p { font-size: 1rem; opacity: 0.95; line-height: 1.5; max-width: 650px; margin: 0 auto; }
 
-        /* CONTAINER LAYANAN & SLIDER */
         .services-section { max-width: 1200px; margin: 40px auto 70px; padding: 0 5%; }
         
         .slider-wrapper {
@@ -172,7 +171,6 @@
         </div>
     </section>
 
-    <!-- KONTEN LAYANAN DENGAN SLIDER & TOMBOL KONDISIONAL -->
     <section class="services-section">
         <div class="slider-wrapper">
             <button id="btnLeft" class="slider-btn slider-btn-left" style="display: none;" onclick="scrollServiceSlider(-1)">&#10094;</button>
@@ -247,7 +245,7 @@
                 <div class="slide-item-service">
                     <div class="service-card">
                         <div>
-                            ${srv.img && srv.img.trim() !== '' ? `<div class="service-img-box"><img src="${srv.img}" alt="${srv.titleId}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'empty-portrait-service\'></div>';"></div>` : `<div class="empty-portrait-service"></div>`}
+                            ${srv.img && srv.img.trim() !== '' ? `<div class="service-img-box"><img src="${srv.img}" alt="${srv.titleId}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-portrait-service\\'></div>';"></div>` : `<div class="empty-portrait-service"></div>`}
                             <h3>${currentLang === 'en' ? (srv.titleEn || srv.titleId) : srv.titleId}</h3>
                             <div class="service-price">${srv.price}</div>
                             <p>${currentLang === 'en' ? (srv.descEn || srv.descId) : srv.descId}</p>

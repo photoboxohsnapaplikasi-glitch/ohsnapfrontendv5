@@ -323,7 +323,7 @@
             <div class="form-grid">
                 <div class="color-picker-box"><input type="color" id="pickerPrimary" class="color-wheel" oninput="syncColor('Primary', this.value)"><div style="flex:1;"><label>Warna Utama</label><input type="text" id="hexPrimary" oninput="syncColor('Primary', this.value)"></div></div>
                 <div class="color-picker-box"><input type="color" id="pickerSecondary" class="color-wheel" oninput="syncColor('Secondary', this.value)"><div style="flex:1;"><label>Warna Teks</label><input type="text" id="hexSecondary" oninput="syncColor('Secondary', this.value)"></div></div>
-                <div class="color-picker-box"><input type="color" id="pickerBg" class="color-wheel" oninput="syncColor('Bg', this.value)"><div style="flex:1;"><label>Warna Background</label><input type="text" id="hexBg" oninput="syncColor('HexBg', this.value)"></div></div>
+                <div class="color-picker-box"><input type="color" id="pickerBg" class="color-wheel" oninput="syncColor('Bg', this.value)"><div style="flex:1;"><label>Warna Background</label><input type="text" id="hexBg" oninput="syncColor('Bg', this.value)"></div></div>
                 <div class="color-picker-box"><input type="color" id="pickerFooter" class="color-wheel" oninput="syncColor('Footer', this.value)"><div style="flex:1;"><label>Warna Footer</label><input type="text" id="hexFooter" oninput="syncColor('Footer', this.value)"></div></div>
             </div>
         </section>
@@ -393,6 +393,11 @@
     <div id="toast" class="toast-notif">✅ Berhasil disimpan!</div>
 
     <script>
+        // Proteksi Login Admin
+        if (!localStorage.getItem('ohsnap_admin_logged')) {
+            window.location.replace('login.html');
+        }
+
         (function() {
             const savedTab = sessionStorage.getItem('activeAdminTab');
             if (savedTab) {
@@ -412,6 +417,18 @@
 
         const API_URL = 'http://localhost:3000/api';
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyum2HVg2InZDhEyeata3I2hTbPUQzzqyKHsEtgA9Z3vRCF2CeTjwzGTCHd4tszlOMm/exec';
+        const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl';
+
+        // Helper agar tanda kutip ganda (") di dalam input tidak memotong teks HTML
+        function escAttr(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
 
         function openMediaDB() {
             return new Promise((resolve, reject) => {
@@ -473,16 +490,25 @@
             } catch (e) {}
         }
 
-        // Upload gambar ke Supabase Storage -> URL publik (tampil di semua device). Fallback: base64 lokal.
+        function dataURLToBlob(dataUrl) {
+            const parts = dataUrl.split(',');
+            const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+            const bstr = atob(parts[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            return new Blob([u8arr], { type: mime });
+        }
+
         async function uploadImageToCloud(file) {
+            const compressedDataUrl = await compressImageFile(file, 1280, 0.82);
             try {
-                const big = await compressImageFile(file, 1200, 0.8);
-                const blob = await (await fetch(big)).blob();
+                const blob = dataURLToBlob(compressedDataUrl);
                 return await OhSnapCloud.upload(blob, 'img', 'jpg');
             } catch (e) {
-                console.warn('Upload gambar ke cloud gagal:', e);
-                showToast('⚠️ Foto hanya tersimpan lokal (upload cloud gagal) - tidak akan tampil di device lain');
-                return await compressImageFile(file, 450, 0.5);
+                console.warn('Upload gambar ke Storage gagal, memakai fallback terkompresi:', e);
+                showToast('⚠️ Bucket ohsnap-media belum aktif di SQL, memakai penyimpanan cadangan');
+                return await compressImageFile(file, 800, 0.7);
             }
         }
 
@@ -594,7 +620,8 @@
             },
             admins: [
                 { id: 1, name: 'Super Admin', username: 'admin', pass: 'ohsnap' }
-            ]
+            ],
+            resendOverrides: {}
         };
 
         function sanitizeVideosList(videos) {
@@ -626,6 +653,9 @@
             
             if (parsed.footer) Object.assign(merged.footer, parsed.footer);
             if (Array.isArray(parsed.admins) && parsed.admins.length > 0) merged.admins = parsed.admins;
+            if (parsed.resendOverrides && typeof parsed.resendOverrides === 'object') {
+                merged.resendOverrides = parsed.resendOverrides;
+            }
             return merged;
         }
 
@@ -656,7 +686,6 @@
             updateBannerState();
             updateTitlesState();
             updateFooterState();
-            persistData();
 
             document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
@@ -674,7 +703,9 @@
         function clearBannerImg() {
             const page = document.getElementById('bannerPageSelect').value;
             if (!cmsData.banners[page]) cmsData.banners[page] = {};
+            const oldUrl = cmsData.banners[page].imgUrl;
             cmsData.banners[page].imgUrl = '';
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
             document.getElementById('bannerImgUrl').value = '';
             const fileEl = document.getElementById('bannerFileInput');
             if (fileEl) fileEl.value = '';
@@ -685,8 +716,10 @@
 
         function clearAboutImg() {
             if (!cmsData.banners.about) cmsData.banners.about = {};
+            const oldUrl = cmsData.banners.about.imgUrl;
             cmsData.banners.about.imgUrl = '';
             if (cmsData.banners.home) cmsData.banners.home.aboutImgUrl = '';
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
             document.getElementById('aboutQuickImgUrl').value = '';
             const fileEl = document.getElementById('aboutQuickFileInput');
             if (fileEl) fileEl.value = '';
@@ -727,7 +760,7 @@
             if (wrap) {
                 const url = (cmsData.banners[page] && cmsData.banners[page].imgUrl) ? cmsData.banners[page].imgUrl : '';
                 if (url && url.trim() !== '') {
-                    wrap.innerHTML = `<div class="media-preview-box"><img src="${url}" onerror="this.style.display='none'"><span>✅ Gambar Banner Aktif</span></div>`;
+                    wrap.innerHTML = `<div class="media-preview-box"><img src="${escAttr(url)}" onerror="this.style.display='none'"><span>✅ Gambar Banner Aktif</span></div>`;
                 } else {
                     wrap.innerHTML = '';
                 }
@@ -737,7 +770,7 @@
             if (aboutWrap) {
                 const aboutUrl = (cmsData.banners.about && cmsData.banners.about.imgUrl) ? cmsData.banners.about.imgUrl : '';
                 if (aboutUrl && aboutUrl.trim() !== '') {
-                    aboutWrap.innerHTML = `<div class="media-preview-box"><img src="${aboutUrl}" onerror="this.style.display='none'"><span>✅ Foto About Story Aktif</span></div>`;
+                    aboutWrap.innerHTML = `<div class="media-preview-box"><img src="${escAttr(aboutUrl)}" onerror="this.style.display='none'"><span>✅ Foto About Story Aktif</span></div>`;
                 } else {
                     aboutWrap.innerHTML = '';
                 }
@@ -745,7 +778,9 @@
         }
 
         function clearArrayImg(arr, idx, prop) {
+            const oldUrl = cmsData[arr][idx][prop];
             cmsData[arr][idx][prop] = '';
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
             persistData();
             initAllRenders();
             showToast('Dikosongkan!');
@@ -762,23 +797,45 @@
             }
         }
 
+        function cleanDataForCloud(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        async function autoSyncAfterUpload(successMsg) {
+            updateBannerState();
+            updateTitlesState();
+            updateFooterState();
+            cmsData.lastUpdated = Date.now();
+            persistData();
+            try {
+                const saved = await OhSnapCloud.save(cleanDataForCloud(cmsData));
+                if (saved && saved.lastUpdated) cmsData.lastUpdated = saved.lastUpdated;
+                markSynced(cmsData);
+                showToast(successMsg + ' & tersinkron ke Cloud!');
+            } catch (e) {
+                console.error('Auto-sync gagal:', e);
+                showToast(successMsg + ' (klik Simpan Semua Perubahan untuk sinkron ulang)');
+            }
+        }
+
         async function handleFileUpload(inputEl) {
             const file = inputEl.files[0];
             if (!file) return;
-            showToast('⏳ Memproses & menyimpan gambar banner...');
+            showToast('⏳ Mengunggah gambar banner ke Cloud Storage...');
             try {
-                const dataUrl = await uploadImageToCloud(file);
                 const page = document.getElementById('bannerPageSelect').value;
                 if (!cmsData.banners[page]) cmsData.banners[page] = {};
-                cmsData.banners[page].imgUrl = dataUrl;
+                const oldUrl = cmsData.banners[page].imgUrl;
+                const publicUrl = await uploadImageToCloud(file);
+                cmsData.banners[page].imgUrl = publicUrl;
                 if (page === 'about' && cmsData.banners.home) {
-                    cmsData.banners.home.aboutImgUrl = dataUrl;
+                    cmsData.banners.home.aboutImgUrl = publicUrl;
                 }
-                document.getElementById('bannerImgUrl').value = '';
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
                 inputEl.value = '';
                 renderBannerPreview();
-                persistData();
-                showToast('✅ Gambar Banner berhasil diupload & tampil!');
+                await autoSyncAfterUpload('✅ Gambar Banner berhasil diupload');
             } catch (err) {
                 showToast('❌ Gagal memuat file gambar');
             }
@@ -787,21 +844,22 @@
         async function handleAboutPhotoUpload(inputEl) {
             const file = inputEl.files[0];
             if (!file) return;
-            showToast('⏳ Memproses & menyimpan Foto About Story...');
+            showToast('⏳ Mengunggah Foto About Story ke Cloud Storage...');
             try {
-                const dataUrl = await uploadImageToCloud(file);
                 if (!cmsData.banners.about) cmsData.banners.about = {};
-                cmsData.banners.about.imgUrl = dataUrl;
                 if (!cmsData.banners.home) cmsData.banners.home = {};
-                cmsData.banners.home.aboutImgUrl = dataUrl;
-                document.getElementById('aboutQuickImgUrl').value = '';
+                const oldUrl = cmsData.banners.about.imgUrl;
+                const publicUrl = await uploadImageToCloud(file);
+                cmsData.banners.about.imgUrl = publicUrl;
+                cmsData.banners.home.aboutImgUrl = publicUrl;
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                document.getElementById('aboutQuickImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
                 if (document.getElementById('bannerPageSelect').value === 'about') {
-                    document.getElementById('bannerImgUrl').value = '';
+                    document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
                 }
                 inputEl.value = '';
                 renderBannerPreview();
-                persistData();
-                showToast('✅ Foto About Story berhasil diupload & tampil!');
+                await autoSyncAfterUpload('✅ Foto About Story berhasil diupload');
             } catch (err) {
                 showToast('❌ Gagal memuat Foto About Story');
             }
@@ -810,14 +868,15 @@
         async function uploadArrayImg(inputEl, arrName, index, propName) {
             const file = inputEl.files[0];
             if (!file) return;
-            showToast('⏳ Memproses & menyimpan foto...');
+            showToast('⏳ Mengunggah foto ke Cloud Storage...');
             try {
-                const dataUrl = await uploadImageToCloud(file);
-                cmsData[arrName][index][propName] = dataUrl;
+                const oldUrl = cmsData[arrName][index][propName];
+                const publicUrl = await uploadImageToCloud(file);
+                cmsData[arrName][index][propName] = publicUrl;
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
                 inputEl.value = '';
-                persistData();
                 initAllRenders();
-                showToast('✅ Foto berhasil diupload & siap tampil!');
+                await autoSyncAfterUpload('✅ Foto berhasil diupload');
             } catch (err) {
                 showToast('❌ Gagal memuat file foto');
             }
@@ -826,27 +885,36 @@
         async function uploadVideoFile(inputEl, arrName, index, propName) {
             const file = inputEl.files[0];
             if (!file) return;
-            showToast('⏳ Mengunggah video ke cloud...');
+            if (file.size > 50 * 1024 * 1024) {
+                alert('Ukuran 1 file video maksimal 50 MB (batas per-file Supabase Free Tier). Silakan kompres videonya terlebih dahulu.');
+                inputEl.value = '';
+                return;
+            }
+            showToast('⏳ Mengunggah video ke Cloud Storage (mohon tunggu)...');
             try {
+                const oldUrl = cmsData[arrName][index][propName];
+                const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
+                const publicUrl = await OhSnapCloud.upload(file, 'video', ext);
+                cmsData[arrName][index][propName] = publicUrl;
+                cmsData[arrName][index].fileName = file.name;
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                inputEl.value = '';
+                initAllRenders();
+                await autoSyncAfterUpload('✅ Video berhasil diupload');
+            } catch (cloudErr) {
+                console.warn('Upload video ke cloud gagal:', cloudErr);
                 try {
-                    const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
-                    const publicUrl = await OhSnapCloud.upload(file, 'video', ext);
-                    cmsData[arrName][index][propName] = publicUrl;
-                    cmsData[arrName][index].fileName = file.name;
-                    showToast('✅ Video terunggah ke cloud (tampil di semua device)!');
-                } catch (cloudErr) {
-                    console.warn('Upload video ke cloud gagal:', cloudErr);
                     const idbKey = `video_slot_${index}_${Date.now()}`;
                     await saveVideoBufferToIDB(idbKey, file);
                     cmsData[arrName][index][propName] = `idb://${idbKey}`;
                     cmsData[arrName][index].fileName = file.name;
-                    showToast('⚠️ Video hanya tersimpan di browser ini (upload cloud gagal, maks 50MB)');
+                    inputEl.value = '';
+                    persistData();
+                    initAllRenders();
+                    showToast('⚠️ Video disimpan lokal (pastikan SQL Bucket ohsnap-media sudah dijalankan)');
+                } catch (err) {
+                    showToast('❌ Gagal menyimpan video MP4');
                 }
-                inputEl.value = '';
-                persistData();
-                initAllRenders();
-            } catch (err) {
-                showToast('❌ Gagal menyimpan video MP4');
             }
         }
 
@@ -947,12 +1015,12 @@
             const btnIdEl = document.getElementById('bannerBtnId');
             const btnEnEl = document.getElementById('bannerBtnEn');
             if (btnIdEl && page === 'about') cmsData.banners[page].btnId = btnIdEl.value;
-            if (btnEnEl && page === 'about') cmsData.banners[page].btnEn = btnEnEnEl.value;
+            if (btnEnEl && page === 'about') cmsData.banners[page].btnEn = btnEnEl.value;
 
             const fullIdEl = document.getElementById('bannerFullId');
             const fullEnEl = document.getElementById('bannerFullEn');
             if (fullIdEl && page === 'about') cmsData.banners[page].fullId = fullIdEl.value;
-            if (fullEnEl && page === 'about') cmsData.banners[page].fullEn = fullEnEnEl.value;
+            if (fullEnEl && page === 'about') cmsData.banners[page].fullEn = fullEnEl.value;
 
             persistData();
         }
@@ -990,14 +1058,14 @@
                 
                 let previewBadge = '';
                 if (isIdb) {
-                    previewBadge = `<div class="media-preview-box"><video data-admin-idb="${idbKey}" muted playsinline loop controls></video><span>🎬 Video MP4 Siap Diputar (${v.fileName || 'MP4'})</span></div>`;
+                    previewBadge = `<div class="media-preview-box"><video data-admin-idb="${escAttr(idbKey)}" muted playsinline loop controls></video><span>🎬 Video MP4 Siap Diputar (${escAttr(v.fileName || 'MP4')})</span></div>`;
                 } else if (v.url && v.url !== '#' && v.url.trim() !== '') {
-                    previewBadge = `<div class="media-preview-box"><span>🔗 Link Video Aktif: ${v.url.slice(0, 35)}...</span></div>`;
+                    previewBadge = `<div class="media-preview-box"><span>🔗 Link Video Aktif: ${escAttr(v.url.slice(0, 35))}...</span></div>`;
                 }
 
                 c.innerHTML += `<div class="item-card"><h4><span>Video #${i+1}</span><div style="display:flex;gap:6px;align-items:center;">${navHtml}<button class="btn-remove" onclick="removeVideo(${i})">Hapus</button></div></h4>
-                    <div class="form-group"><label>Judul Video</label><input type="text" value="${v.title || ''}" oninput="cmsData.videos[${i}].title=this.value; persistData();"></div>
-                    <div class="form-group"><label>Link URL (IG/TikTok/MP4) atau Upload File MP4</label><div class="input-with-clear"><input type="text" value="${inputVal}" placeholder="${inputPlaceholder}" oninput="cmsData.videos[${i}].url=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('videos',${i},'url')">❌ X</button></div><input type="file" accept="video/mp4,video/*" style="margin-top:6px;" onchange="uploadVideoFile(this,'videos',${i},'url')">${previewBadge}</div></div>`;
+                    <div class="form-group"><label>Judul Video</label><input type="text" value="${escAttr(v.title || '')}" oninput="cmsData.videos[${i}].title=this.value; persistData();"></div>
+                    <div class="form-group"><label>Link URL (IG/TikTok/MP4) atau Upload File MP4</label><div class="input-with-clear"><input type="text" value="${escAttr(inputVal)}" placeholder="${escAttr(inputPlaceholder)}" oninput="cmsData.videos[${i}].url=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('videos',${i},'url')">❌ X</button></div><input type="file" accept="video/mp4,video/*" style="margin-top:6px;" onchange="uploadVideoFile(this,'videos',${i},'url')">${previewBadge}</div></div>`;
             });
 
             setTimeout(async () => {
@@ -1024,12 +1092,12 @@
                 const isBase64 = s.img && s.img.startsWith('data:image');
                 const displayVal = isBase64 ? '' : (s.img || '');
                 const placeholderVal = isBase64 ? '✅ Foto dari komputer sudah tersimpan' : 'Upload foto di bawah atau isi URL';
-                const previewHtml = (s.img && s.img.trim() !== '') ? `<div class="media-preview-box"><img src="${s.img}" onerror="this.style.display='none'"><span>✅ Foto Studio Aktif</span></div>` : '';
+                const previewHtml = (s.img && s.img.trim() !== '') ? `<div class="media-preview-box"><img src="${escAttr(s.img)}" onerror="this.style.display='none'"><span>✅ Foto Studio Aktif</span></div>` : '';
 
                 c.innerHTML += `<div class="item-card"><h4><span>Studio #${i+1}</span><div style="display:flex;gap:6px;align-items:center;">${navHtml}<button class="btn-remove" onclick="removeStudio(${i})">Hapus</button></div></h4>
-                    <div class="form-group"><label>Nama</label><input type="text" value="${s.title || ''}" oninput="cmsData.studios[${i}].title=this.value; persistData();"></div>
-                    <div class="form-group"><label>Desc</label><input type="text" value="${s.desc || ''}" oninput="cmsData.studios[${i}].desc=this.value; persistData();"></div>
-                    <div class="form-group"><label>Foto</label><div class="input-with-clear"><input type="text" value="${displayVal}" placeholder="${placeholderVal}" oninput="cmsData.studios[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('studios',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'studios',${i},'img')">${previewHtml}</div></div>`;
+                    <div class="form-group"><label>Nama</label><input type="text" value="${escAttr(s.title || '')}" oninput="cmsData.studios[${i}].title=this.value; persistData();"></div>
+                    <div class="form-group"><label>Desc</label><input type="text" value="${escAttr(s.desc || '')}" oninput="cmsData.studios[${i}].desc=this.value; persistData();"></div>
+                    <div class="form-group"><label>Foto</label><div class="input-with-clear"><input type="text" value="${escAttr(displayVal)}" placeholder="${escAttr(placeholderVal)}" oninput="cmsData.studios[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('studios',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'studios',${i},'img')">${previewHtml}</div></div>`;
             });
         }
         function addStudioItem() { cmsData.studios.push({title:'Studio Baru', desc:'', img:''}); persistData(); renderStudios(); }
@@ -1044,13 +1112,13 @@
                 const isBase64 = p.img && p.img.startsWith('data:image');
                 const displayVal = isBase64 ? '' : (p.img || '');
                 const placeholderVal = isBase64 ? '✅ Poster dari komputer sudah tersimpan' : 'Upload poster di bawah atau isi URL';
-                const previewHtml = (p.img && p.img.trim() !== '') ? `<div class="media-preview-box"><img src="${p.img}" onerror="this.style.display='none'"><span>✅ Poster Promo Aktif</span></div>` : '';
+                const previewHtml = (p.img && p.img.trim() !== '') ? `<div class="media-preview-box"><img src="${escAttr(p.img)}" onerror="this.style.display='none'"><span>✅ Poster Promo Aktif</span></div>` : '';
 
                 c.innerHTML += `<div class="item-card"><h4><span>Promo #${i+1}</span><div style="display:flex;gap:6px;align-items:center;">${navHtml}<button class="btn-remove" onclick="removePromo(${i})">Hapus</button></div></h4>
-                    <div class="form-group"><label>Judul</label><input type="text" value="${p.title || ''}" oninput="cmsData.promos[${i}].title=this.value; persistData();"></div>
-                    <div class="form-group"><label>Badge</label><input type="text" value="${p.badge || ''}" oninput="cmsData.promos[${i}].badge=this.value; persistData();"></div>
-                    <div class="form-group"><label>Desc</label><textarea oninput="cmsData.promos[${i}].desc=this.value; persistData();">${p.desc || ''}</textarea></div>
-                    <div class="form-group"><label>Poster</label><div class="input-with-clear"><input type="text" value="${displayVal}" placeholder="${placeholderVal}" oninput="cmsData.promos[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('promos',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'promos',${i},'img')">${previewHtml}</div></div>`;
+                    <div class="form-group"><label>Judul</label><input type="text" value="${escAttr(p.title || '')}" oninput="cmsData.promos[${i}].title=this.value; persistData();"></div>
+                    <div class="form-group"><label>Badge</label><input type="text" value="${escAttr(p.badge || '')}" oninput="cmsData.promos[${i}].badge=this.value; persistData();"></div>
+                    <div class="form-group"><label>Desc</label><textarea oninput="cmsData.promos[${i}].desc=this.value; persistData();">${escAttr(p.desc || '')}</textarea></div>
+                    <div class="form-group"><label>Poster</label><div class="input-with-clear"><input type="text" value="${escAttr(displayVal)}" placeholder="${escAttr(placeholderVal)}" oninput="cmsData.promos[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('promos',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'promos',${i},'img')">${previewHtml}</div></div>`;
             });
         }
         function addPromoItem() { cmsData.promos.push({title:'Promo Baru', badge:'PROMO', desc:'', img:''}); persistData(); renderPromos(); }
@@ -1069,7 +1137,7 @@
                 const isBase64 = f.img && f.img.startsWith('data:image');
                 const displayVal = isBase64 ? '' : (f.img || '');
                 const placeholderVal = isBase64 ? '✅ Gambar Frame sudah tersimpan' : 'Upload frame di bawah atau isi URL';
-                const previewHtml = (f.img && f.img.trim() !== '') ? `<div class="media-preview-box"><img src="${f.img}" onerror="this.style.display='none'"><span>✅ Frame Aktif</span></div>` : '';
+                const previewHtml = (f.img && f.img.trim() !== '') ? `<div class="media-preview-box"><img src="${escAttr(f.img)}" onerror="this.style.display='none'"><span>✅ Frame Aktif</span></div>` : '';
                 
                 c.innerHTML += `<div class="item-card">
                     <h4>
@@ -1079,10 +1147,10 @@
                             <button class="btn-remove" onclick="removeFrame(${i})">Hapus</button>
                         </div>
                     </h4>
-                    <div class="form-group"><label>Nama Frame</label><input type="text" value="${f.title || ''}" oninput="cmsData.frames[${i}].title=this.value; persistData();"></div>
-                    <div class="form-group"><label>Kategori</label><input type="text" value="${f.category || ''}" oninput="cmsData.frames[${i}].category=this.value; persistData();"></div>
-                    <div class="form-group"><label>Deskripsi Frame</label><textarea oninput="cmsData.frames[${i}].desc=this.value; persistData();">${f.desc || ''}</textarea></div>
-                    <div class="form-group"><label>Gambar Frame</label><div class="input-with-clear"><input type="text" value="${displayVal}" placeholder="${placeholderVal}" oninput="cmsData.frames[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('frames',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'frames',${i},'img')">${previewHtml}</div>
+                    <div class="form-group"><label>Nama Frame</label><input type="text" value="${escAttr(f.title || '')}" oninput="cmsData.frames[${i}].title=this.value; persistData();"></div>
+                    <div class="form-group"><label>Kategori</label><input type="text" value="${escAttr(f.category || '')}" oninput="cmsData.frames[${i}].category=this.value; persistData();"></div>
+                    <div class="form-group"><label>Deskripsi Frame</label><textarea oninput="cmsData.frames[${i}].desc=this.value; persistData();">${escAttr(f.desc || '')}</textarea></div>
+                    <div class="form-group"><label>Gambar Frame</label><div class="input-with-clear"><input type="text" value="${escAttr(displayVal)}" placeholder="${escAttr(placeholderVal)}" oninput="cmsData.frames[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('frames',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'frames',${i},'img')">${previewHtml}</div>
                 </div>`;
             });
         }
@@ -1102,7 +1170,7 @@
                 const isBase64 = s.img && s.img.startsWith('data:image');
                 const displayVal = isBase64 ? '' : (s.img || '');
                 const placeholderVal = isBase64 ? '✅ Foto Layanan sudah tersimpan' : 'Upload foto di bawah atau isi URL';
-                const previewHtml = (s.img && s.img.trim() !== '') ? `<div class="media-preview-box"><img src="${s.img}" onerror="this.style.display='none'"><span>✅ Foto Layanan Aktif</span></div>` : '';
+                const previewHtml = (s.img && s.img.trim() !== '') ? `<div class="media-preview-box"><img src="${escAttr(s.img)}" onerror="this.style.display='none'"><span>✅ Foto Layanan Aktif</span></div>` : '';
                 
                 c.innerHTML += `<div class="item-card">
                     <h4>
@@ -1112,10 +1180,10 @@
                             <button class="btn-remove" onclick="removeSrv(${i})">Hapus</button>
                         </div>
                     </h4>
-                    <div class="form-group"><label>Judul Layanan (Title)</label><input type="text" value="${s.titleId || s.title || ''}" oninput="cmsData.services[${i}].titleId=this.value; persistData();"></div>
-                    <div class="form-group"><label>Harga (Contoh: Rp 35.000)</label><input type="text" value="${s.price || ''}" oninput="cmsData.services[${i}].price=this.value; persistData();"></div>
-                    <div class="form-group"><label>Deskripsi Layanan (Desc)</label><textarea oninput="cmsData.services[${i}].descId=this.value; persistData();">${s.descId || s.desc || ''}</textarea></div>
-                    <div class="form-group"><label>Foto Layanan (Format Portrait)</label><div class="input-with-clear"><input type="text" value="${displayVal}" placeholder="${placeholderVal}" oninput="cmsData.services[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('services',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'services',${i},'img')">${previewHtml}</div>
+                    <div class="form-group"><label>Judul Layanan (Title)</label><input type="text" value="${escAttr(s.titleId || s.title || '')}" oninput="cmsData.services[${i}].titleId=this.value; persistData();"></div>
+                    <div class="form-group"><label>Harga (Contoh: Rp 35.000)</label><input type="text" value="${escAttr(s.price || '')}" oninput="cmsData.services[${i}].price=this.value; persistData();"></div>
+                    <div class="form-group"><label>Deskripsi Layanan (Desc)</label><textarea oninput="cmsData.services[${i}].descId=this.value; persistData();">${escAttr(s.descId || s.desc || '')}</textarea></div>
+                    <div class="form-group"><label>Foto Layanan (Format Portrait)</label><div class="input-with-clear"><input type="text" value="${escAttr(displayVal)}" placeholder="${escAttr(placeholderVal)}" oninput="cmsData.services[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('services',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'services',${i},'img')">${previewHtml}</div>
                 </div>`;
             });
         }
@@ -1131,14 +1199,14 @@
                 const isBase64 = l.img && l.img.startsWith('data:image');
                 const displayVal = isBase64 ? '' : (l.img || '');
                 const placeholderVal = isBase64 ? '✅ Foto Cabang sudah tersimpan' : 'Upload foto di bawah atau isi URL';
-                const previewHtml = (l.img && l.img.trim() !== '') ? `<div class="media-preview-box"><img src="${l.img}" onerror="this.style.display='none'"><span>✅ Foto Cabang Aktif</span></div>` : '';
+                const previewHtml = (l.img && l.img.trim() !== '') ? `<div class="media-preview-box"><img src="${escAttr(l.img)}" onerror="this.style.display='none'"><span>✅ Foto Cabang Aktif</span></div>` : '';
 
                 c.innerHTML += `<div class="item-card"><h4><span>Lokasi #${i+1}</span><div style="display:flex;gap:6px;align-items:center;">${navHtml}<button class="btn-remove" onclick="removeLoc(${i})">Hapus</button></div></h4>
-                    <div class="form-group"><label>Nama Cabang</label><input type="text" value="${l.name || ''}" oninput="cmsData.locations[${i}].name=this.value; persistData();"></div>
-                    <div class="form-group"><label>Lantai</label><input type="text" value="${l.floor || ''}" oninput="cmsData.locations[${i}].floor=this.value; persistData();"></div>
-                    <div class="form-group"><label>Jam Buka</label><input type="text" value="${l.hours || ''}" oninput="cmsData.locations[${i}].hours=this.value; persistData();"></div>
-                    <div class="form-group"><label>Maps URL</label><input type="text" value="${l.mapUrl || ''}" oninput="cmsData.locations[${i}].mapUrl=this.value; persistData();"></div>
-                    <div class="form-group"><label>Foto Cabang (Format 1:1)</label><div class="input-with-clear"><input type="text" value="${displayVal}" placeholder="${placeholderVal}" oninput="cmsData.locations[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('locations',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'locations',${i},'img')">${previewHtml}</div></div>`;
+                    <div class="form-group"><label>Nama Cabang</label><input type="text" value="${escAttr(l.name || '')}" oninput="cmsData.locations[${i}].name=this.value; persistData();"></div>
+                    <div class="form-group"><label>Lantai</label><input type="text" value="${escAttr(l.floor || '')}" oninput="cmsData.locations[${i}].floor=this.value; persistData();"></div>
+                    <div class="form-group"><label>Jam Buka</label><input type="text" value="${escAttr(l.hours || '')}" oninput="cmsData.locations[${i}].hours=this.value; persistData();"></div>
+                    <div class="form-group"><label>Maps URL</label><input type="text" value="${escAttr(l.mapUrl || '')}" oninput="cmsData.locations[${i}].mapUrl=this.value; persistData();"></div>
+                    <div class="form-group"><label>Foto Cabang (Format 1:1)</label><div class="input-with-clear"><input type="text" value="${escAttr(displayVal)}" placeholder="${escAttr(placeholderVal)}" oninput="cmsData.locations[${i}].img=this.value.trim(); persistData();"><button type="button" class="btn-clear-input" onclick="clearArrayImg('locations',${i},'img')">❌ X</button></div><input type="file" accept="image/*" style="margin-top:6px;" onchange="uploadArrayImg(this,'locations',${i},'img')">${previewHtml}</div></div>`;
             });
         }
         function addLocationItem() { cmsData.locations.push({name:'Cabang Baru', floor:'Lt.1', hours:'10.00 - 22.00', mapUrl:'', img:''}); persistData(); renderLocations(); }
@@ -1206,12 +1274,25 @@
         let resendList = [];
         let resendLocalOverrides = JSON.parse(localStorage.getItem('ohsnap_resend_overrides') || '{}');
 
-        function saveResendOverrides() {
+        async function saveResendOverrides() {
+            if (cmsData && cmsData.resendOverrides) {
+                resendLocalOverrides = Object.assign({}, resendLocalOverrides, cmsData.resendOverrides);
+            }
+            cmsData.resendOverrides = resendLocalOverrides;
             localStorage.setItem('ohsnap_resend_overrides', JSON.stringify(resendLocalOverrides));
+            persistData();
+            try {
+                await OhSnapCloud.save(cleanDataForCloud(cmsData));
+                markSynced(cmsData);
+            } catch (e) {}
         }
 
         async function loadResendData() {
             showToast('🔄 Mengambil data dari Spreadsheet...');
+            if (cmsData && cmsData.resendOverrides) {
+                resendLocalOverrides = Object.assign({}, resendLocalOverrides, cmsData.resendOverrides);
+                localStorage.setItem('ohsnap_resend_overrides', JSON.stringify(resendLocalOverrides));
+            }
             try {
                 const res = await fetch(SCRIPT_URL);
                 const data = await res.json();
@@ -1320,19 +1401,19 @@
                 tb.innerHTML += `
                     <tr class="${isSudah?'row-sudah':'row-belum'}">
                         <td>${i + 1}</td>
-                        <td>${parsedIn.date}</td>
-                        <td>${parsedIn.time}</td>
-                        <td>${finalTglFoto}</td>
-                        <td>${finalJamFoto}</td>
-                        <td>${namaCust}</td>
-                        <td>${r.whatsapp || r.no_hp || r.hp || '-'}</td>
-                        <td>${customerEmail || '-'}</td>
-                        <td>${cabangCust}</td>
-                        <td>${linkFoto && linkFoto !== '#' ? `<a href="${linkFoto}" target="_blank" class="link-drive">📁 Lihat Foto</a>` : '-'}</td>
+                        <td>${escAttr(parsedIn.date)}</td>
+                        <td>${escAttr(parsedIn.time)}</td>
+                        <td>${escAttr(finalTglFoto)}</td>
+                        <td>${escAttr(finalJamFoto)}</td>
+                        <td>${escAttr(namaCust)}</td>
+                        <td>${escAttr(r.whatsapp || r.no_hp || r.hp || '-')}</td>
+                        <td>${escAttr(customerEmail || '-')}</td>
+                        <td>${escAttr(cabangCust)}</td>
+                        <td>${linkFoto && linkFoto !== '#' ? `<a href="${escAttr(linkFoto)}" target="_blank" class="link-drive">📁 Lihat Foto</a>` : '-'}</td>
                         <td>
                             <div class="action-btns-group">
-                                <a href="${waUrl}" target="_blank" class="btn-action-wa">💬 WA</a>
-                                <a href="${emailUrl}" class="btn-action-email">✉️ Email</a>
+                                <a href="${escAttr(waUrl)}" target="_blank" class="btn-action-wa">💬 WA</a>
+                                <a href="${escAttr(emailUrl)}" target="_blank" class="btn-action-email">✉️ Email</a>
                             </div>
                         </td>
                         <td><button class="btn-toggle-status ${isSudah?'btn-status-sudah':'btn-status-belum'}" onclick="toggleStatus(${i},'${isSudah ? 'Sudah' : 'Belum'}')">${isSudah?'✔ SUDAH':'❗ BELUM'}</button></td>
@@ -1348,9 +1429,10 @@
                 const key = resendList[idx]._rowKey || `row_${idx}`;
                 if (!resendLocalOverrides[key]) resendLocalOverrides[key] = {};
                 resendLocalOverrides[key].status = next;
-                saveResendOverrides();
+                renderResendTable();
+                await saveResendOverrides();
+                showToast('✅ Status Resend disinkronkan ke Cloud!');
             }
-            renderResendTable();
         }
 
         async function delResend(idx) {
@@ -1358,10 +1440,11 @@
                 const key = resendList[idx]._rowKey || `row_${idx}`;
                 if (!resendLocalOverrides[key]) resendLocalOverrides[key] = {};
                 resendLocalOverrides[key].deleted = true;
-                saveResendOverrides();
                 resendList.splice(idx, 1);
+                renderResendTable();
+                await saveResendOverrides();
+                showToast('🗑️ Data Resend dihapus & disinkronkan!');
             }
-            renderResendTable();
         }
 
         function renderAdminTable() {
@@ -1376,9 +1459,9 @@
                 tb.innerHTML += `
                     <tr>
                         <td>${i + 1}</td>
-                        <td>${a.name || a.nama || 'Admin'}</td>
-                        <td>${a.username || '-'}</td>
-                        <td>${a.pass || '-'}</td>
+                        <td>${escAttr(a.name || a.nama || 'Admin')}</td>
+                        <td>${escAttr(a.username || '-')}</td>
+                        <td>${escAttr(a.pass || '-')}</td>
                         <td><button class="btn-remove" onclick="deleteAdmin(${i})">Hapus</button></td>
                     </tr>`;
             });
@@ -1423,149 +1506,6 @@
                 renderAdminTable();
                 saveAllCMS();
                 showToast('🗑️ Akun admin berhasil dihapus!');
-            }
-        }
-
-// ==========================================
-        // SINKRONISASI SUPABASE & UPLOAD STORAGE 1GB (ANTI HILANG)
-        // ==========================================
-        const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl';
-
-        // Konversi Base64 DataURL ke Blob biner secara langsung (tanpa fetch data: yang sering gagal)
-        function dataURLToBlob(dataUrl) {
-            const parts = dataUrl.split(',');
-            const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
-            const bstr = atob(parts[1]);
-            let n = bstr.length;
-            const u8arr = new Uint8Array(n);
-            while (n--) u8arr[n] = bstr.charCodeAt(n);
-            return new Blob([u8arr], { type: mime });
-        }
-
-        // Upload gambar ke Supabase Storage (kompresi HD 1280px ~180KB agar muat ribuan foto di 1GB)
-        async function uploadImageToCloud(file) {
-            const compressedDataUrl = await compressImageFile(file, 1280, 0.82);
-            try {
-                const blob = dataURLToBlob(compressedDataUrl);
-                return await OhSnapCloud.upload(blob, 'img', 'jpg');
-            } catch (e) {
-                console.warn('Upload gambar ke Storage gagal, memakai fallback terkompresi:', e);
-                showToast('⚠️ Bucket ohsnap-media belum aktif di SQL, memakai penyimpanan cadangan');
-                return await compressImageFile(file, 800, 0.7);
-            }
-        }
-
-        // Jangan pernah menghapus foto yang sudah diupload
-        function cleanDataForCloud(obj) {
-            return JSON.parse(JSON.stringify(obj));
-        }
-
-        // Simpan otomatis ke Supabase Cloud setiap selesai upload foto/video agar tidak pernah hilang
-        async function autoSyncAfterUpload(successMsg) {
-            updateBannerState();
-            updateTitlesState();
-            updateFooterState();
-            cmsData.lastUpdated = Date.now();
-            persistData();
-            try {
-                const saved = await OhSnapCloud.save(cleanDataForCloud(cmsData));
-                if (saved && saved.lastUpdated) cmsData.lastUpdated = saved.lastUpdated;
-                markSynced(cmsData);
-                showToast(successMsg + ' & tersinkron ke Cloud!');
-            } catch (e) {
-                console.error('Auto-sync gagal:', e);
-                showToast(successMsg + ' (klik Simpan Semua Perubahan untuk sinkron ulang)');
-            }
-        }
-
-        async function handleFileUpload(inputEl) {
-            const file = inputEl.files[0];
-            if (!file) return;
-            showToast('⏳ Mengunggah gambar banner ke Cloud Storage...');
-            try {
-                const page = document.getElementById('bannerPageSelect').value;
-                if (!cmsData.banners[page]) cmsData.banners[page] = {};
-                const oldUrl = cmsData.banners[page].imgUrl;
-                const publicUrl = await uploadImageToCloud(file);
-                cmsData.banners[page].imgUrl = publicUrl;
-                if (page === 'about' && cmsData.banners.home) {
-                    cmsData.banners.home.aboutImgUrl = publicUrl;
-                }
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
-                document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
-                inputEl.value = '';
-                renderBannerPreview();
-                await autoSyncAfterUpload('✅ Gambar Banner berhasil diupload');
-            } catch (err) {
-                showToast('❌ Gagal memuat file gambar banner');
-            }
-        }
-
-        async function handleAboutPhotoUpload(inputEl) {
-            const file = inputEl.files[0];
-            if (!file) return;
-            showToast('⏳ Mengunggah Foto About Story ke Cloud Storage...');
-            try {
-                if (!cmsData.banners.about) cmsData.banners.about = {};
-                if (!cmsData.banners.home) cmsData.banners.home = {};
-                const oldUrl = cmsData.banners.about.imgUrl;
-                const publicUrl = await uploadImageToCloud(file);
-                cmsData.banners.about.imgUrl = publicUrl;
-                cmsData.banners.home.aboutImgUrl = publicUrl;
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
-                document.getElementById('aboutQuickImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
-                if (document.getElementById('bannerPageSelect').value === 'about') {
-                    document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
-                }
-                inputEl.value = '';
-                renderBannerPreview();
-                await autoSyncAfterUpload('✅ Foto About Story berhasil diupload');
-            } catch (err) {
-                showToast('❌ Gagal memuat Foto About Story');
-            }
-        }
-
-        async function uploadArrayImg(inputEl, arrName, index, propName) {
-            const file = inputEl.files[0];
-            if (!file) return;
-            showToast('⏳ Mengunggah foto ke Cloud Storage...');
-            try {
-                const oldUrl = cmsData[arrName][index][propName];
-                const publicUrl = await uploadImageToCloud(file);
-                cmsData[arrName][index][propName] = publicUrl;
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
-                inputEl.value = '';
-                initAllRenders();
-                await autoSyncAfterUpload('✅ Foto berhasil diupload');
-            } catch (err) {
-                showToast('❌ Gagal memuat file foto');
-            }
-        }
-
-        async function uploadVideoFile(inputEl, arrName, index, propName) {
-            const file = inputEl.files[0];
-            if (!file) return;
-            if (file.size > 50 * 1024 * 1024) {
-                alert('Ukuran 1 file video maksimal 50 MB (batas per-file Supabase Free Tier). Silakan kompres videonya terlebih dahulu.');
-                inputEl.value = '';
-                return;
-            }
-            showToast('⏳ Mengunggah video ke Cloud Storage (mohon tunggu)...');
-            try {
-                const oldUrl = cmsData[arrName][index][propName];
-                const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
-                const publicUrl = await OhSnapCloud.upload(file, 'video', ext);
-                cmsData[arrName][index][propName] = publicUrl;
-                cmsData[arrName][index].fileName = file.name;
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
-                inputEl.value = '';
-                initAllRenders();
-                await autoSyncAfterUpload('✅ Video berhasil diupload');
-            } catch (cloudErr) {
-                console.error('Upload video ke cloud gagal:', cloudErr);
-                showToast('⚠️ Gagal upload video ke Cloud (pastikan SQL Bucket Langkah 1 sudah dijalankan)');
-                inputEl.value = '';
             }
         }
 
@@ -1646,22 +1586,16 @@
             cmsData = localData;
 
             initAllRenders();
-            loadResendData();
 
             try {
                 const remote = await OhSnapCloud.load(true);
                 if (remote && Object.keys(remote).length > 0) {
-                    const remoteTime = Number(remote.lastUpdated || 0);
-                    const localTime = Number(cmsData.lastUpdated || 0);
-                    // Gunakan data cloud jika lebih baru atau jika browser ini belum pernah sinkron
-                    if (remoteTime >= localTime || !localStorage.getItem('ohsnap_cloud_synced_at')) {
-                        cmsData = mergeWithDefault(remote);
-                        cmsData.lastUpdated = remoteTime || Date.now();
-                        saveCMSBackupToIDB(cmsData);
-                        markSynced(cmsData);
-                        initAllRenders();
-                    }
-                    showToast('☁️ Terhubung ke Cloud & siap digunakan!');
+                    cmsData = mergeWithDefault(remote);
+                    cmsData.lastUpdated = Number(remote.lastUpdated || Date.now());
+                    saveCMSBackupToIDB(cmsData);
+                    markSynced(cmsData);
+                    initAllRenders();
+                    showToast('☁️ Terhubung ke Cloud & data terbaru berhasil disinkronkan!');
                 } else {
                     const initialPayload = cleanDataForCloud(cmsData);
                     await OhSnapCloud.save(initialPayload);
@@ -1672,6 +1606,8 @@
                 console.warn('Gagal menarik data cloud:', e);
                 showToast('⚠️ Tidak bisa menjangkau cloud - memakai data lokal browser ini');
             }
+
+            loadResendData();
         });
     </script>
 </body>

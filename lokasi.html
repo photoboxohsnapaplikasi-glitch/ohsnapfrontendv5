@@ -39,7 +39,6 @@
         .hero-banner-content h1 span { color: #ff69b4; }
         .hero-banner-content p { font-size: 1rem; opacity: 0.95; line-height: 1.5; max-width: 650px; margin: 0 auto; }
 
-        /* CONTAINER LOKASI DENGAN GRID RAPI (BERJAJAR KE SAMPING & LANJUT KE BAWAH) */
         .locations-section { max-width: 1200px; margin: 40px auto 70px; padding: 0 5%; }
         
         .locations-grid {
@@ -120,7 +119,6 @@
         </div>
     </section>
 
-    <!-- KELOLA LOKASI DENGAN GRID LANSKAP (BERJAJAR & LANJUT KE BAWAH) -->
     <section class="locations-section">
         <div id="locationsGrid" class="locations-grid"></div>
     </section>
@@ -184,7 +182,7 @@
 
             document.getElementById('locationsGrid').innerHTML = list.map(l => `
                 <div class="location-card">
-                    ${l.img && l.img.trim() !== '' ? `<img src="${l.img}" alt="${l.name}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'empty-landscape-location\'></div>';">` : `<div class="empty-landscape-location"></div>`}
+                    ${l.img && l.img.trim() !== '' ? `<img src="${l.img}" alt="${l.name}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-landscape-location\\'></div>';">` : `<div class="empty-landscape-location"></div>`}
                     <div class="location-info">
                         <div>
                             <span class="location-floor">${l.floor || 'Lantai 1'}</span>

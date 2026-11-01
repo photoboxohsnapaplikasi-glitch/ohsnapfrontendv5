@@ -39,7 +39,6 @@
         .hero-banner-content h1 span { color: #ff69b4; }
         .hero-banner-content p { font-size: 1rem; opacity: 0.95; line-height: 1.5; max-width: 650px; margin: 0 auto; }
 
-        /* CONTAINER FRAME & SLIDER */
         .frames-section { max-width: 1200px; margin: 40px auto 70px; padding: 0 5%; }
         
         .slider-wrapper {
@@ -164,7 +163,6 @@
         </div>
     </section>
 
-    <!-- KELOLA FRAME DENGAN SLIDER & TOMBOL KONDISIONAL (> 5) -->
     <section class="frames-section">
         <div class="slider-wrapper">
             <button id="btnFrameLeft" class="slider-btn slider-btn-left" style="display: none;" onclick="scrollFrameSlider(-1)">&#10094;</button>
@@ -239,7 +237,7 @@
             document.getElementById('framesGrid').innerHTML = list.map(f => `
                 <div class="slide-item-frame">
                     <div class="frame-card">
-                        ${f.img && f.img.trim() !== '' ? `<img src="${f.img}" alt="${f.title}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'empty-portrait-frame\'></div>';">` : `<div class="empty-portrait-frame"></div>`}
+                        ${f.img && f.img.trim() !== '' ? `<img src="${f.img}" alt="${f.title}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-portrait-frame\\'></div>';">` : `<div class="empty-portrait-frame"></div>`}
                         <div class="frame-info">
                             <div>
                                 <span class="frame-cat">${f.category || 'Frame'}</span>

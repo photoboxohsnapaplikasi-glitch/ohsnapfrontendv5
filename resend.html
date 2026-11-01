@@ -96,7 +96,6 @@
         </div>
     </header>
 
-    <!-- FORM PENGIRIMAN ULANG SOFTCOPY -->
     <section class="form-section">
         <div class="resend-card">
             <h2 data-en="Request Softcopy" data-id="Permintaan Softcopy">Permintaan Softcopy</h2>
@@ -134,7 +133,6 @@
                     <input type="time" id="resTime" required>
                 </div>
 
-                <!-- KOLOM UPLOAD FOTO DENGAN PREVIEW & TOMBOL X -->
                 <div class="form-group">
                     <label data-en="Upload Photo / Proof of Session" data-id="Upload Foto / Bukti Sesi Foto">Upload Foto / Bukti Sesi Foto</label>
                     <div class="upload-box">
@@ -191,16 +189,37 @@
         let uploadedPhotoName = '';
         function previewPhoto(event) {
             const file = event.target.files[0];
-            if (file) {
-                uploadedPhotoName = file.name;
-                const reader = new FileReader();
-                reader.onload = function(e) {
+            if (!file) return;
+            uploadedPhotoName = file.name;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const maxDim = 1000;
+                    let w = img.width, h = img.height;
+                    if (w > maxDim || h > maxDim) {
+                        if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                        else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                    }
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    uploadedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.75);
+                    document.getElementById('photoPreview').src = uploadedPhotoBase64;
+                    document.getElementById('previewBox').style.display = 'block';
+                };
+                img.onerror = function() {
                     uploadedPhotoBase64 = e.target.result;
                     document.getElementById('photoPreview').src = uploadedPhotoBase64;
                     document.getElementById('previewBox').style.display = 'block';
-                }
-                reader.readAsDataURL(file);
-            }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
 
         function removePhoto() {
@@ -237,19 +256,15 @@
                     body: JSON.stringify(payload)
                 });
 
-                let list = JSON.parse(localStorage.getItem('ohsnap_resend_list')) || [];
-                list.unshift({ ...payload, id: Date.now(), tanggal_masuk: new Date().toLocaleString() });
-                localStorage.setItem('ohsnap_resend_list', JSON.stringify(list));
-
                 alert('✅ Permintaan resend softcopy berhasil dikirim!\n\nPengiriman softfile akan dilakukan dalam kurun waktu 7x24 jam. Jikalau lebih dari waktu yang sudah ditentukan harap menghubungi admin kami di kolom kontak.');
                 
                 document.getElementById('resendForm').reset();
                 removePhoto();
             } catch (err) {
                 console.error(err);
-                alert('⚠️ Terjadi kendala koneksi saat mengirim data, namun data tersimpan di lokal.');
+                alert('⚠️ Terjadi kendala koneksi saat mengirim data. Silakan coba lagi.');
             } finally {
-                btn.textContent = 'Kirim Permintaan';
+                btn.textContent = currentLang === 'en' ? 'Submit Request' : 'Kirim Permintaan';
                 btn.disabled = false;
             }
         }
@@ -262,7 +277,18 @@
                 document.documentElement.style.setProperty('--bg-main', cms.colors.bg || '#fff0f5');
                 document.documentElement.style.setProperty('--footer-bg', cms.colors.footer || '#18171d');
             }
-            if (cms && cms.footer) {
+            if (Array.isArray(cms.locations) && cms.locations.length > 0) {
+                const branchSelect = document.getElementById('resBranch');
+                const currentVal = branchSelect.value;
+                branchSelect.innerHTML = cms.locations.map(l => {
+                    const label = `${l.name || 'Cabang'}${l.floor ? ' ' + l.floor.replace(/^Lantai\s+/i, 'Lt.') : ''}`;
+                    return `<option value="${label}">${label}</option>`;
+                }).join('');
+                if (currentVal && Array.from(branchSelect.options).some(o => o.value === currentVal)) {
+                    branchSelect.value = currentVal;
+                }
+            }
+            if (cms.footer) {
                 document.getElementById('fBrand').textContent = cms.footer.brand;
                 document.getElementById('fBranches').textContent = cms.footer.branches;
                 const ig = document.getElementById('fIg'); if(ig) { ig.textContent = cms.footer.igName; ig.href = cms.footer.igUrl || '#'; }
