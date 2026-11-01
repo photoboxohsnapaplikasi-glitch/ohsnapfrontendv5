@@ -1427,35 +1427,146 @@
         }
 
 // ==========================================
-        // SINKRONISASI SUPABASE MENGGUNAKAN NATIVE FETCH (100% ANTI GAGAL)
+        // SINKRONISASI SUPABASE & UPLOAD STORAGE 1GB (ANTI HILANG)
         // ==========================================
         const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl';
 
-        function cleanDataForCloud(obj) {
-            const clone = JSON.parse(JSON.stringify(obj));
-            // Biarkan URL publik & base64 hasil kompresi (<350KB) tetap ikut ke cloud agar tampil di semua device
-            const maxInlineLen = 350000;
-            ['promos', 'studios', 'frames', 'services', 'locations'].forEach(arr => {
-                if (Array.isArray(clone[arr])) {
-                    clone[arr].forEach(item => {
-                        if (item.img && item.img.startsWith('data:image') && item.img.length > maxInlineLen) {
-                            item.img = '';
-                        }
-                    });
-                }
-            });
-            if (clone.banners) {
-                Object.keys(clone.banners).forEach(k => {
-                    if (clone.banners[k].imgUrl && clone.banners[k].imgUrl.startsWith('data:image') && clone.banners[k].imgUrl.length > maxInlineLen) {
-                        clone.banners[k].imgUrl = '';
-                    }
-                    if (clone.banners[k].aboutImgUrl && clone.banners[k].aboutImgUrl.startsWith('data:image') && clone.banners[k].aboutImgUrl.length > maxInlineLen) {
-                        clone.banners[k].aboutImgUrl = '';
-                    }
-                });
+        // Konversi Base64 DataURL ke Blob biner secara langsung (tanpa fetch data: yang sering gagal)
+        function dataURLToBlob(dataUrl) {
+            const parts = dataUrl.split(',');
+            const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+            const bstr = atob(parts[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            return new Blob([u8arr], { type: mime });
+        }
+
+        // Upload gambar ke Supabase Storage (kompresi HD 1280px ~180KB agar muat ribuan foto di 1GB)
+        async function uploadImageToCloud(file) {
+            const compressedDataUrl = await compressImageFile(file, 1280, 0.82);
+            try {
+                const blob = dataURLToBlob(compressedDataUrl);
+                return await OhSnapCloud.upload(blob, 'img', 'jpg');
+            } catch (e) {
+                console.warn('Upload gambar ke Storage gagal, memakai fallback terkompresi:', e);
+                showToast('⚠️ Bucket ohsnap-media belum aktif di SQL, memakai penyimpanan cadangan');
+                return await compressImageFile(file, 800, 0.7);
             }
-            return clone;
+        }
+
+        // Jangan pernah menghapus foto yang sudah diupload
+        function cleanDataForCloud(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        // Simpan otomatis ke Supabase Cloud setiap selesai upload foto/video agar tidak pernah hilang
+        async function autoSyncAfterUpload(successMsg) {
+            updateBannerState();
+            updateTitlesState();
+            updateFooterState();
+            cmsData.lastUpdated = Date.now();
+            persistData();
+            try {
+                const saved = await OhSnapCloud.save(cleanDataForCloud(cmsData));
+                if (saved && saved.lastUpdated) cmsData.lastUpdated = saved.lastUpdated;
+                markSynced(cmsData);
+                showToast(successMsg + ' & tersinkron ke Cloud!');
+            } catch (e) {
+                console.error('Auto-sync gagal:', e);
+                showToast(successMsg + ' (klik Simpan Semua Perubahan untuk sinkron ulang)');
+            }
+        }
+
+        async function handleFileUpload(inputEl) {
+            const file = inputEl.files[0];
+            if (!file) return;
+            showToast('⏳ Mengunggah gambar banner ke Cloud Storage...');
+            try {
+                const page = document.getElementById('bannerPageSelect').value;
+                if (!cmsData.banners[page]) cmsData.banners[page] = {};
+                const oldUrl = cmsData.banners[page].imgUrl;
+                const publicUrl = await uploadImageToCloud(file);
+                cmsData.banners[page].imgUrl = publicUrl;
+                if (page === 'about' && cmsData.banners.home) {
+                    cmsData.banners.home.aboutImgUrl = publicUrl;
+                }
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
+                inputEl.value = '';
+                renderBannerPreview();
+                await autoSyncAfterUpload('✅ Gambar Banner berhasil diupload');
+            } catch (err) {
+                showToast('❌ Gagal memuat file gambar banner');
+            }
+        }
+
+        async function handleAboutPhotoUpload(inputEl) {
+            const file = inputEl.files[0];
+            if (!file) return;
+            showToast('⏳ Mengunggah Foto About Story ke Cloud Storage...');
+            try {
+                if (!cmsData.banners.about) cmsData.banners.about = {};
+                if (!cmsData.banners.home) cmsData.banners.home = {};
+                const oldUrl = cmsData.banners.about.imgUrl;
+                const publicUrl = await uploadImageToCloud(file);
+                cmsData.banners.about.imgUrl = publicUrl;
+                cmsData.banners.home.aboutImgUrl = publicUrl;
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                document.getElementById('aboutQuickImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
+                if (document.getElementById('bannerPageSelect').value === 'about') {
+                    document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
+                }
+                inputEl.value = '';
+                renderBannerPreview();
+                await autoSyncAfterUpload('✅ Foto About Story berhasil diupload');
+            } catch (err) {
+                showToast('❌ Gagal memuat Foto About Story');
+            }
+        }
+
+        async function uploadArrayImg(inputEl, arrName, index, propName) {
+            const file = inputEl.files[0];
+            if (!file) return;
+            showToast('⏳ Mengunggah foto ke Cloud Storage...');
+            try {
+                const oldUrl = cmsData[arrName][index][propName];
+                const publicUrl = await uploadImageToCloud(file);
+                cmsData[arrName][index][propName] = publicUrl;
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                inputEl.value = '';
+                initAllRenders();
+                await autoSyncAfterUpload('✅ Foto berhasil diupload');
+            } catch (err) {
+                showToast('❌ Gagal memuat file foto');
+            }
+        }
+
+        async function uploadVideoFile(inputEl, arrName, index, propName) {
+            const file = inputEl.files[0];
+            if (!file) return;
+            if (file.size > 50 * 1024 * 1024) {
+                alert('Ukuran 1 file video maksimal 50 MB (batas per-file Supabase Free Tier). Silakan kompres videonya terlebih dahulu.');
+                inputEl.value = '';
+                return;
+            }
+            showToast('⏳ Mengunggah video ke Cloud Storage (mohon tunggu)...');
+            try {
+                const oldUrl = cmsData[arrName][index][propName];
+                const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
+                const publicUrl = await OhSnapCloud.upload(file, 'video', ext);
+                cmsData[arrName][index][propName] = publicUrl;
+                cmsData[arrName][index].fileName = file.name;
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                inputEl.value = '';
+                initAllRenders();
+                await autoSyncAfterUpload('✅ Video berhasil diupload');
+            } catch (cloudErr) {
+                console.error('Upload video ke cloud gagal:', cloudErr);
+                showToast('⚠️ Gagal upload video ke Cloud (pastikan SQL Bucket Langkah 1 sudah dijalankan)');
+                inputEl.value = '';
+            }
         }
 
         async function saveAllCMS() {
@@ -1525,7 +1636,6 @@
             renderAdminTable();
         }
 
-        // Pemuatan Instan + Sinkronisasi Cloud Otomatis di Semua Perangkat
         document.addEventListener('DOMContentLoaded', async () => {
             let localData = loadSavedCMS();
             let idbBackup = await getMediaFromIDB('cms_full_backup');
@@ -1538,18 +1648,21 @@
             initAllRenders();
             loadResendData();
 
-            // Selalu tarik data terbaru dari Supabase Cloud saat halaman Admin dibuka
             try {
                 const remote = await OhSnapCloud.load(true);
                 if (remote && Object.keys(remote).length > 0) {
-                    cmsData = mergeWithDefault(remote);
-                    cmsData.lastUpdated = Number(remote.lastUpdated || Date.now());
-                    saveCMSBackupToIDB(cmsData);
-                    markSynced(cmsData);
-                    initAllRenders();
-                    showToast('☁️ Terhubung ke Cloud & data terbaru berhasil disinkronkan!');
+                    const remoteTime = Number(remote.lastUpdated || 0);
+                    const localTime = Number(cmsData.lastUpdated || 0);
+                    // Gunakan data cloud jika lebih baru atau jika browser ini belum pernah sinkron
+                    if (remoteTime >= localTime || !localStorage.getItem('ohsnap_cloud_synced_at')) {
+                        cmsData = mergeWithDefault(remote);
+                        cmsData.lastUpdated = remoteTime || Date.now();
+                        saveCMSBackupToIDB(cmsData);
+                        markSynced(cmsData);
+                        initAllRenders();
+                    }
+                    showToast('☁️ Terhubung ke Cloud & siap digunakan!');
                 } else {
-                    // Jika tabel di Supabase baru masih kosong ('{}'), langsung unggah data awal otomatis
                     const initialPayload = cleanDataForCloud(cmsData);
                     await OhSnapCloud.save(initialPayload);
                     markSynced(cmsData);

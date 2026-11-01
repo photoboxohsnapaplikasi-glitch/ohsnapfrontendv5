@@ -1,4 +1,4 @@
-/* OH SNAP! - Klien Cloud Bersama (Supabase) - Global Sync Ready */
+/* OH SNAP! - Klien Cloud Bersama (Supabase 1GB Storage Ready) */
 (function () {
   const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl';
@@ -12,7 +12,7 @@
   let cache = null, cacheAt = 0;
 
   async function load(force) {
-    if (!force && cache && Date.now() - cacheAt < 5000) return cache;
+    if (!force && cache && Date.now() - cacheAt < 4000) return cache;
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?id=eq.1&select=data,updated_at`, {
       headers: BASE_HEADERS,
       cache: 'no-store'
@@ -31,18 +31,24 @@
     return cache;
   }
 
-  // Dipakai semua halaman frontend: selalu utamakan data Cloud jika tersedia
+  // Dipakai halaman frontend: hanya timpa localStorage jika data di cloud memang lebih baru
   async function pullIfNewer() {
     try {
       const remote = await load(true);
       if (!remote || Object.keys(remote).length === 0) return null;
-      try {
-        localStorage.setItem('ohsnap_cms_data', JSON.stringify(remote));
-        if (remote.lastUpdated) {
-          localStorage.setItem('ohsnap_cloud_synced_at', String(remote.lastUpdated));
-        }
-      } catch (e) {}
-      return remote;
+      let local = null;
+      try { local = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
+      const remoteTime = Number(remote.lastUpdated || 0);
+      const localTime = Number((local && local.lastUpdated) || 0);
+
+      if (!local || remoteTime >= localTime) {
+        try {
+          localStorage.setItem('ohsnap_cms_data', JSON.stringify(remote));
+          localStorage.setItem('ohsnap_cloud_synced_at', String(remoteTime));
+        } catch (e) {}
+        return remote;
+      }
+      return local;
     } catch (e) {
       console.warn('[OhSnapCloud] gagal ambil data cloud:', e.message || e);
       return null;
@@ -73,6 +79,7 @@
     return payloadData;
   }
 
+  // Upload foto/video langsung ke Supabase Storage Bucket (1GB)
   async function upload(fileOrBlob, folder, ext) {
     const cleanExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
     const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${cleanExt}`;
@@ -88,6 +95,20 @@
     return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
   }
 
+  // Hapus file lama di Supabase Storage saat foto/video diganti agar kuota 1GB tidak cepat penuh
+  async function removeFile(publicUrl) {
+    try {
+      const marker = `/storage/v1/object/public/${BUCKET}/`;
+      if (!publicUrl || typeof publicUrl !== 'string' || !publicUrl.includes(marker)) return;
+      const filePath = publicUrl.split(marker)[1];
+      if (!filePath) return;
+      await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${filePath}`, {
+        method: 'DELETE',
+        headers: BASE_HEADERS
+      });
+    } catch (e) {}
+  }
+
   async function ping() {
     const t0 = performance.now();
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?select=id&limit=1`, {
@@ -97,5 +118,5 @@
     return { status: res.status, ms: Math.round(performance.now() - t0) };
   }
 
-  window.OhSnapCloud = { load, pullIfNewer, save, upload, ping, URL: SUPABASE_URL };
+  window.OhSnapCloud = { load, pullIfNewer, save, upload, removeFile, ping, URL: SUPABASE_URL };
 })();
