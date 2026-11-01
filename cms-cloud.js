@@ -1,7 +1,7 @@
 /* OH SNAP! - klien cloud bersama (Supabase). Dipakai admin.html & semua halaman frontend. */
 (function () {
-  const SUPABASE_URL = 'https://nwmvjmhrqwrvnlypdjxe.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_JeGNoytBoJBCQ6Xqwe_PQA_hILpX8IK';
+  const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl';
   const TABLE = 'cms_settings';
   const BUCKET = 'ohsnap-media';
   const BASE_HEADERS = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
