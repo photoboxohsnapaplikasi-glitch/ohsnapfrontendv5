@@ -32,18 +32,27 @@
     return cache;
   }
 
-  // Dipakai semua halaman frontend: selalu ambil data terbaru dari cloud agar sinkron di PC & HP
+  // Dipakai semua halaman frontend: ambil data terbaru dari cloud tanpa menimpa draft admin aktif
   async function pullIfNewer() {
     try {
       const remote = await load(true);
       if (!remote || Object.keys(remote).length === 0) return null;
-      try {
-        localStorage.setItem('ohsnap_cms_data', JSON.stringify(remote));
-        if (remote.lastUpdated) {
-          localStorage.setItem('ohsnap_cloud_synced_at', String(remote.lastUpdated));
-        }
-      } catch (e) {}
-      return remote;
+      let local = null;
+      try { local = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
+      const remoteTime = Number(remote.lastUpdated || 0);
+      const localTime = Number((local && local.lastUpdated) || 0);
+      const isAdminSession = !!localStorage.getItem('ohsnap_admin_logged');
+
+      if (!isAdminSession || !local || remoteTime >= localTime) {
+        try {
+          localStorage.setItem('ohsnap_cms_data', JSON.stringify(remote));
+          if (remoteTime) {
+            localStorage.setItem('ohsnap_cloud_synced_at', String(remoteTime));
+          }
+        } catch (e) {}
+        return remote;
+      }
+      return local;
     } catch (e) {
       console.warn('[OhSnapCloud] gagal ambil data cloud:', e.message || e);
       return null;
