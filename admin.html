@@ -1271,181 +1271,92 @@
             loadColors(); saveAllCMS(); showToast('🔄 Warna dikembalikan ke default!');  
         }
 
-        let resendList = [];
-        let resendLocalOverrides = JSON.parse(localStorage.getItem('ohsnap_resend_overrides') || '{}');
+let resendList = [];
+    let resendLocalOverrides = {};
 
-        async function saveResendOverrides() {
-            if (cmsData && cmsData.resendOverrides) {
-                resendLocalOverrides = Object.assign({}, resendLocalOverrides, cmsData.resendOverrides);
-            }
-            cmsData.resendOverrides = resendLocalOverrides;
-            localStorage.setItem('ohsnap_resend_overrides', JSON.stringify(resendLocalOverrides));
-            persistData();
-            try {
-                await OhSnapCloud.save(cleanDataForCloud(cmsData));
-                markSynced(cmsData);
-            } catch (e) {}
+    async function saveResendOverrides() {
+        cmsData.resendOverrides = {};
+        localStorage.removeItem('ohsnap_resend_overrides');
+    }
+
+    async function loadResendData() {
+        showToast('🔄 Mengambil data terbaru dari Spreadsheet...');
+        // Bersihkan filter lokal lama agar data asli di Spreadsheet tampil apa adanya
+        localStorage.removeItem('ohsnap_resend_overrides');
+        if (cmsData && cmsData.resendOverrides) {
+            cmsData.resendOverrides = {};
         }
-
-        async function loadResendData() {
-            showToast('🔄 Mengambil data dari Spreadsheet...');
-            if (cmsData && cmsData.resendOverrides) {
-                resendLocalOverrides = Object.assign({}, resendLocalOverrides, cmsData.resendOverrides);
-                localStorage.setItem('ohsnap_resend_overrides', JSON.stringify(resendLocalOverrides));
-            }
-            try {
-                const res = await fetch(SCRIPT_URL);
-                const data = await res.json();
-                if (data && Array.isArray(data)) {
-                    resendList = data.map((item, idx) => {
-                        const rowKey = item.id || `${item.nama || ''}_${item.whatsapp || item.no_hp || ''}_${idx}`;
-                        item._rowKey = rowKey;
-                        if (resendLocalOverrides[rowKey]?.status) {
-                            item.tindak_lanjut = resendLocalOverrides[rowKey].status;
-                        }
-                        return item;
-                    }).filter(item => !resendLocalOverrides[item._rowKey]?.deleted);
-                }
-            } catch(e) {
+        try {
+            const res = await fetch(SCRIPT_URL + '?t=' + Date.now(), { cache: 'no-store' });
+            const data = await res.json();
+            if (data && Array.isArray(data)) {
+                resendList = data.map((item, idx) => {
+                    item._sheetRow = item._sheetRow || (idx + 4);
+                    item.link_foto = item.link_foto || item.foto || item.upload_foto || item['UPLOAD FOTO  CETAKAN'] || item['UPLOAD FOTO CETAKAN'] || Object.values(item)[8] || '#';
+                    item.tindak_lanjut = item.tindak_lanjut || item.aksi || item['AKSI'] || Object.values(item)[9] || 'Belum';
+                    return item;
+                });
+            } else {
                 resendList = [];
             }
-            renderResendTable();
-            showToast('✅ Data berhasil diperbarui!');
+        } catch (e) {
+            console.error('Gagal ambil data Spreadsheet:', e);
+            resendList = [];
         }
+        renderResendTable();
+        showToast('✅ Data Spreadsheet berhasil dimuat!');
+    }
 
-        function parseColumnValue(val) {
-            if (!val) return { date: '-', time: '-' };
-            let str = String(val).trim();
+    async function toggleStatus(idx, curr) {
+        const r = resendList[idx];
+        if (!r) return;
+        const next = (curr === 'Sudah' || curr === 'SUDAH') ? 'Belum' : 'Sudah';
+        r.tindak_lanjut = next;
+        renderResendTable();
+        showToast('⏳ Memperbarui status di Spreadsheet...');
 
-            if (str.includes('GMT') || str.includes('UTC') || str.includes('Sat ') || str.includes('Sun ') || str.includes('Mon ') || str.includes('Tue ') || str.includes('Wed ') || str.includes('Thu ') || str.includes('Fri ')) {
-                let d = new Date(str);
-                if (!isNaN(d.getTime())) {
-                    let day = String(d.getDate()).padStart(2, '0');
-                    let month = String(d.getMonth() + 1).padStart(2, '0');
-                    let year = d.getFullYear();
-                    let hours = String(d.getHours()).padStart(2, '0');
-                    let mins = String(d.getMinutes()).padStart(2, '0');
-                    let secs = String(d.getSeconds()).padStart(2, '0');
-                    return { date: `${day}/${month}/${year}`, time: `${hours}:${mins}:${secs}` };
-                }
-            }
+        try {
+            const qs = new URLSearchParams({
+                action: 'updateStatus',
+                status: next,
+                sheetRow: r._sheetRow || '',
+                nama: r.nama || r.name || '',
+                no_hp: r.whatsapp || r.no_hp || r.hp || '',
+                link_foto: r.link_foto || ''
+            }).toString();
 
-            let parts = str.split(/[\sT]+/);
-            let datePart = parts[0] || '-';
-            let timePart = parts[1] || '-';
-
-            if (datePart.includes('-')) {
-                let d = datePart.split('-');
-                if (d[0].length === 4) datePart = `${d[2]}/${d[1]}/${d[0]}`;
-            }
-
-            return { date: datePart, time: timePart !== '-' ? timePart.slice(0, 8) : '-' };
+            await fetch(`${SCRIPT_URL}?${qs}`, { method: 'GET', mode: 'no-cors' });
+            showToast('✅ Status berhasil diubah menjadi ' + next + ' di Spreadsheet!');
+        } catch (e) {
+            showToast('⚠️ Gagal menghubungi Spreadsheet');
         }
+    }
 
-        function renderResendTable() {
-            const tb = document.getElementById('resendTableBody');  
-            tb.innerHTML = '';
-             
-            if (!resendList || resendList.length === 0) {
-                tb.innerHTML = `<tr><td colspan="13" style="text-align:center; padding:20px; color:#999;">Belum ada data resend softcopy.</td></tr>`;
-                return;
-            }
+    async function delResend(idx) {
+        const r = resendList[idx];
+        if (!r) return;
+        if (!confirm(`Hapus permanen data permintaan "${r.nama || 'Pelanggan'}" dari Dashboard & Google Spreadsheet?`)) return;
 
-            resendList.forEach((r, i) => {
-                const isSudah = (String(r.tindak_lanjut || r.aksi || '').toLowerCase() === 'sudah');
-                const cleanPhone = String(r.whatsapp || r.no_hp || r.hp || '').replace(/\D/g, '');
-                const formattedPhone = cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone;
-                const linkFoto = r.link_foto || r.foto || r.upload_foto || r.link || '#';
-                const customerEmail = r.email || r.mail || '';
-                const namaCust = r.nama || r.name || 'Pelanggan';
-                const cabangCust = r.cabang || r.branch || '-';
-                 
-                let rawTglMasuk = r.tanggal_masuk || r.tanggal || Object.values(r)[1] || '';
-                let parsedIn = parseColumnValue(rawTglMasuk);
+        resendList.splice(idx, 1);
+        renderResendTable();
+        showToast('⏳ Menghapus baris data dari Google Spreadsheet...');
 
-                let rawTglFoto = r.tanggal_foto || Object.values(r)[2] || '';
-                let parsedFotoDate = parseColumnValue(rawTglFoto);
-                let finalTglFoto = parsedFotoDate.date !== '-' ? parsedFotoDate.date : (rawTglFoto || '-');
+        try {
+            const qs = new URLSearchParams({
+                action: 'delete',
+                sheetRow: r._sheetRow || '',
+                nama: r.nama || r.name || '',
+                no_hp: r.whatsapp || r.no_hp || r.hp || '',
+                link_foto: r.link_foto || ''
+            }).toString();
 
-                let finalJamFoto = '-';
-                let rawJamFoto = r.jam_foto || r.jam || Object.values(r)[3] || '';
-                 
-                if (rawJamFoto !== null && rawJamFoto !== undefined && String(rawJamFoto).trim() !== '') {
-                    let strJam = String(rawJamFoto).trim();
-                    if (strJam.includes('GMT') || strJam.includes('UTC')) {
-                        let d = new Date(strJam);
-                        if (!isNaN(d.getTime())) {
-                            d.setTime(d.getTime() - (25 * 60 * 1000 + 20 * 1000));
-                            let hh = String(d.getHours()).padStart(2, '0');
-                            let mm = String(d.getMinutes()).padStart(2, '0');
-                            let ss = String(d.getSeconds()).padStart(2, '0');
-                            finalJamFoto = `${hh}:${mm}:${ss}`;
-                        } else {
-                            finalJamFoto = strJam.slice(11, 19);
-                        }
-                    } else if (strJam.includes(':')) {
-                        let parts = strJam.split(/[\sT]+/);
-                        finalJamFoto = parts.length > 1 ? parts[1].slice(0, 8) : parts[0].slice(0, 8);
-                    } else {
-                        finalJamFoto = strJam.slice(0, 8);
-                    }
-                }
-
-                const waText = encodeURIComponent(`Halo kak ${namaCust}, berikut link softcopy foto kamu dari OH SNAP! Photobox ya: `);
-                const waUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${waText}`;
-
-                const emailSub = "Link Softcopy Foto OH SNAP! Photobox";
-                const emailBody = `Halo kak ${namaCust},\n\nBerikut kami kirimkan link softcopy foto kamu:\n\nTerima kasih telah berkunjung ke OH SNAP! Photobox!`;
-                const emailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(customerEmail)}&su=${encodeURIComponent(emailSub)}&body=${encodeURIComponent(emailBody)}`;
-
-                tb.innerHTML += `
-                    <tr class="${isSudah?'row-sudah':'row-belum'}">
-                        <td>${i + 1}</td>
-                        <td>${escAttr(parsedIn.date)}</td>
-                        <td>${escAttr(parsedIn.time)}</td>
-                        <td>${escAttr(finalTglFoto)}</td>
-                        <td>${escAttr(finalJamFoto)}</td>
-                        <td>${escAttr(namaCust)}</td>
-                        <td>${escAttr(r.whatsapp || r.no_hp || r.hp || '-')}</td>
-                        <td>${escAttr(customerEmail || '-')}</td>
-                        <td>${escAttr(cabangCust)}</td>
-                        <td>${linkFoto && linkFoto !== '#' ? `<a href="${escAttr(linkFoto)}" target="_blank" class="link-drive">📁 Lihat Foto</a>` : '-'}</td>
-                        <td>
-                            <div class="action-btns-group">
-                                <a href="${escAttr(waUrl)}" target="_blank" class="btn-action-wa">💬 WA</a>
-                                <a href="${escAttr(emailUrl)}" target="_blank" class="btn-action-email">✉️ Email</a>
-                            </div>
-                        </td>
-                        <td><button class="btn-toggle-status ${isSudah?'btn-status-sudah':'btn-status-belum'}" onclick="toggleStatus(${i},'${isSudah ? 'Sudah' : 'Belum'}')">${isSudah?'✔ SUDAH':'❗ BELUM'}</button></td>
-                        <td><button class="btn-remove" onclick="delResend(${i})">Hapus</button></td>
-                    </tr>`;
-            });
+            await fetch(`${SCRIPT_URL}?${qs}`, { method: 'GET', mode: 'no-cors' });
+            showToast('🗑️ Data berhasil dihapus permanen dari Spreadsheet!');
+            setTimeout(() => loadResendData(), 1500);
+        } catch (e) {
+            showToast('⚠️ Gagal menghapus data di Spreadsheet');
         }
-
-        async function toggleStatus(idx, curr) {
-            const next = (curr === 'Sudah' || curr === 'SUDAH') ? 'Belum' : 'Sudah';
-            if (resendList[idx]) {
-                resendList[idx].tindak_lanjut = next;
-                const key = resendList[idx]._rowKey || `row_${idx}`;
-                if (!resendLocalOverrides[key]) resendLocalOverrides[key] = {};
-                resendLocalOverrides[key].status = next;
-                renderResendTable();
-                await saveResendOverrides();
-                showToast('✅ Status Resend disinkronkan ke Cloud!');
-            }
-        }
-
-        async function delResend(idx) {
-            if (resendList[idx]) {
-                const key = resendList[idx]._rowKey || `row_${idx}`;
-                if (!resendLocalOverrides[key]) resendLocalOverrides[key] = {};
-                resendLocalOverrides[key].deleted = true;
-                resendList.splice(idx, 1);
-                renderResendTable();
-                await saveResendOverrides();
-                showToast('🗑️ Data Resend dihapus & disinkronkan!');
-            }
-        }
+    }
 
         function renderAdminTable() {
             const tb = document.getElementById('adminTableBody');
