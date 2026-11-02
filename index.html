@@ -6,16 +6,22 @@
     <title>OH SNAP! Photobox - Capture Your Fun Moments</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
-        // Terapkan warna tema secara instan di <head> sebelum body digambar
         (function() {
             try {
-                const saved = JSON.parse(localStorage.getItem('ohsnap_cms_data'));
-                if (saved && saved.colors) {
-                    const r = document.documentElement.style;
-                    if (saved.colors.primary) r.setProperty('--primary', saved.colors.primary);
-                    if (saved.colors.secondary) r.setProperty('--secondary', saved.colors.secondary);
-                    if (saved.colors.bg) r.setProperty('--bg-main', saved.colors.bg);
-                    if (saved.colors.footer) r.setProperty('--footer-bg', saved.colors.footer);
+                const raw = localStorage.getItem('ohsnap_cms_data');
+                if (raw) {
+                    const saved = JSON.parse(raw);
+                    if (saved && saved.colors) {
+                        const r = document.documentElement.style;
+                        if (saved.colors.primary) r.setProperty('--primary', saved.colors.primary);
+                        if (saved.colors.secondary) r.setProperty('--secondary', saved.colors.secondary);
+                        if (saved.colors.bg) r.setProperty('--bg-main', saved.colors.bg);
+                        if (saved.colors.footer) r.setProperty('--footer-bg', saved.colors.footer);
+                    }
+                } else {
+                    // Pengunjung baru pertama kali (localStorage kosong): tahan render teks default sampai data Cloud masuk
+                    document.documentElement.classList.add('awaiting-first-cloud');
+                    setTimeout(() => document.documentElement.classList.remove('awaiting-first-cloud'), 700);
                 }
             } catch (e) {}
         })();
@@ -24,6 +30,10 @@
         :root { --primary: #ff1493; --secondary: #2b4c7e; --bg-main: #fff0f5; --footer-bg: #18171d; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
         body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; overflow-x: hidden; }
+        html.awaiting-first-cloud .hero-banner-content,
+        html.awaiting-first-cloud .about-section,
+        html.awaiting-first-cloud .section-wrap { opacity: 0; }
+        .hero-banner-content, .about-section, .section-wrap { transition: opacity 0.15s ease; }
         
         header { display: flex; justify-content: space-between; align-items: center; height: 85px; padding: 0 4%; background: var(--primary); position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         .logo-container { display: flex; align-items: center; gap: 12px; text-decoration: none; z-index: 1001; }
@@ -301,8 +311,12 @@
 
     <script src="cms-cloud.js"></script>
     <script>
-        const API_URL = 'http://localhost:3000/api';
         let currentLang = localStorage.getItem('siteLang') || 'id';
+
+        function escHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
 
         function getMediaFromIDB(key) {
             return new Promise((resolve) => {
@@ -376,12 +390,19 @@
         };
 
         let cms = defaultCMS;
+        let hasInitialLocal = false;
         try {
             const parsed = JSON.parse(localStorage.getItem('ohsnap_cms_data'));
-            if (parsed && typeof parsed === 'object') cms = parsed;
+            if (parsed && typeof parsed === 'object') {
+                cms = parsed;
+                hasInitialLocal = true;
+            }
         } catch (e) {}
 
         let lastRenderedSignature = '';
+        let lastStudioSig = '';
+        let lastPromoSig = '';
+        let lastVideoSig = '';
 
         document.getElementById('menuToggle').addEventListener('click', () => {
             document.getElementById('navContainer').classList.toggle('active');
@@ -418,7 +439,10 @@
                     document.getElementById('heroTitle').innerHTML = currentLang === 'en' ? (b.titleEn || b.titleId || '') : (b.titleId || '');
                     document.getElementById('heroSub').textContent = currentLang === 'en' ? (b.subEn || b.subId || '') : (b.subId || '');
                     if (b.imgUrl && b.imgUrl.trim() !== '' && b.imgUrl !== 'images/hero-banner.jpg') {
-                        document.getElementById('heroBannerBg').style.backgroundImage = `url("${b.imgUrl}")`;
+                        const targetBg = `url("${b.imgUrl}")`;
+                        if (document.getElementById('heroBannerBg').style.backgroundImage !== targetBg) {
+                            document.getElementById('heroBannerBg').style.backgroundImage = targetBg;
+                        }
                     } else {
                         document.getElementById('heroBannerBg').style.backgroundImage = 'none';
                     }
@@ -465,82 +489,94 @@
             document.getElementById('secVideoTitle').innerHTML = t.titleVideoId || defaultCMS.titles.titleVideoId;
             document.getElementById('secVideoSub').textContent = t.subVideoId || defaultCMS.titles.subVideoId;
 
-            // Render Studios
+            // Render Studios (hanya jika data studio berubah agar gambar tidak berkedip)
             const studiosList = (cms.studios && cms.studios.length > 0) ? cms.studios : defaultCMS.studios;
-            document.getElementById('studioGrid').innerHTML = studiosList.map(s => `
-                <div class="slide-item-studio">
-                    <div class="card-item">
-                        ${s.img && s.img.trim() !== '' ? `<div style="width:100%; height:460px; overflow:hidden; background:#fff;"><img src="${s.img}" alt="${s.title}" style="width: 100%; height: 460px; object-fit: cover; display:block;" onerror="this.parentElement.outerHTML='<div class=\\'empty-portrait-box\\'></div>'"></div>` : `<div class="empty-portrait-box"></div>`}
-                        <div class="card-body">
-                            <div>
-                                <h3>${s.title || 'Nama Studio'}</h3>
-                                <p>${s.desc || 'Deskripsi studio'}</p>
+            const currentStudioSig = JSON.stringify(studiosList);
+            if (currentStudioSig !== lastStudioSig) {
+                lastStudioSig = currentStudioSig;
+                document.getElementById('studioGrid').innerHTML = studiosList.map(s => `
+                    <div class="slide-item-studio">
+                        <div class="card-item">
+                            ${s.img && s.img.trim() !== '' ? `<div style="width:100%; height:460px; overflow:hidden; background:#fff;"><img src="${escHtml(s.img)}" alt="${escHtml(s.title)}" style="width: 100%; height: 460px; object-fit: cover; display:block;" onerror="this.parentElement.outerHTML='<div class=\\'empty-portrait-box\\'></div>'"></div>` : `<div class="empty-portrait-box"></div>`}
+                            <div class="card-body">
+                                <div>
+                                    <h3>${escHtml(s.title || 'Nama Studio')}</h3>
+                                    <p>${escHtml(s.desc || 'Deskripsi studio')}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                `).join('');
+            }
 
-            // Render Promos
+            // Render Promos (hanya jika data promo berubah)
             const promosList = (cms.promos && cms.promos.length > 0) ? cms.promos : defaultCMS.promos;
-            document.getElementById('promoGrid').innerHTML = promosList.map(p => `
-                <div class="slide-item-promo">
-                    <div class="card-item">
-                        ${p.img && p.img.trim() !== '' ? `<div style="width:100%; height:460px; overflow:hidden; background:#fff;"><img src="${p.img}" alt="${p.title}" style="width: 100%; height: 460px; object-fit: cover; display:block;" onerror="this.parentElement.outerHTML='<div class=\\'empty-portrait-box\\'></div>'"></div>` : `<div class="empty-portrait-box"></div>`}
-                        <div class="card-body">
-                            <div>
-                                <span class="badge-tag">${p.badge || 'PROMO'}</span>
-                                <h3>${p.title || 'Judul Promo'}</h3>
-                                <p>${p.desc || 'Keterangan promo'}</p>
+            const currentPromoSig = JSON.stringify(promosList);
+            if (currentPromoSig !== lastPromoSig) {
+                lastPromoSig = currentPromoSig;
+                document.getElementById('promoGrid').innerHTML = promosList.map(p => `
+                    <div class="slide-item-promo">
+                        <div class="card-item">
+                            ${p.img && p.img.trim() !== '' ? `<div style="width:100%; height:460px; overflow:hidden; background:#fff;"><img src="${escHtml(p.img)}" alt="${escHtml(p.title)}" style="width: 100%; height: 460px; object-fit: cover; display:block;" onerror="this.parentElement.outerHTML='<div class=\\'empty-portrait-box\\'></div>'"></div>` : `<div class="empty-portrait-box"></div>`}
+                            <div class="card-body">
+                                <div>
+                                    <span class="badge-tag">${escHtml(p.badge || 'PROMO')}</span>
+                                    <h3>${escHtml(p.title || 'Judul Promo')}</h3>
+                                    <p>${escHtml(p.desc || 'Keterangan promo')}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                `).join('');
+            }
 
-            // Render Videos
+            // Render Videos (hanya jika data video berubah agar video tidak reload saat ganti bahasa)
             const videosList = (cms.videos && cms.videos.length > 0) ? cms.videos : defaultCMS.videos;
-            document.getElementById('videoGrid').innerHTML = videosList.map(v => {
-                let mediaContent = `<div class="empty-portrait-video"></div>`;
-                let rawUrl = (v && v.url) ? String(v.url).trim() : '';
+            const currentVideoSig = JSON.stringify(videosList);
+            if (currentVideoSig !== lastVideoSig) {
+                lastVideoSig = currentVideoSig;
+                document.getElementById('videoGrid').innerHTML = videosList.map(v => {
+                    let mediaContent = `<div class="empty-portrait-video"></div>`;
+                    let rawUrl = (v && v.url) ? String(v.url).trim() : '';
 
-                if (rawUrl !== '' && rawUrl !== '#' && rawUrl !== 'images/video-1.mp4' && !rawUrl.startsWith('[')) {
-                    let cleanUrl = rawUrl.replace(/^#/, '').trim();
-                    if (cleanUrl.startsWith('idb://')) {
-                        const idbKey = cleanUrl.replace('idb://', '');
-                        mediaContent = `<div class="empty-portrait-video" data-idb-slot="${idbKey}"></div>`;
-                    } else if (cleanUrl.includes('tiktok.com') || cleanUrl.includes('instagram.com')) {
-                        let platformName = cleanUrl.includes('tiktok.com') ? 'TikTok' : 'Instagram';
-                        mediaContent = `<div style="position:relative; width:100%; height:480px; border-radius:24px; border:2px solid #fbcfe8; overflow:hidden; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
-                            <div style="position:absolute; inset:0; background:linear-gradient(135deg, #2b4c7e 0%, #ff1493 100%); opacity:0.85;"></div>
-                            <div style="position:relative; z-index:2; padding:20px; display:flex; flex-direction:column; align-items:center; gap:14px;">
-                                <div style="width:60px; height:60px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.5rem; box-shadow:0 6px 20px rgba(0,0,0,0.4);">▶</div>
-                                <span style="color:#fff; font-weight:700; font-size:1.05rem; text-shadow:0 2px 8px rgba(0,0,0,0.8);">Tonton di ${platformName}</span>
-                                <a href="${cleanUrl}" target="_blank" style="background:#fff; color:var(--secondary); padding:10px 24px; border-radius:50px; font-weight:800; font-size:0.9rem; text-decoration:none; box-shadow:0 4px 15px rgba(0,0,0,0.3); transition:0.2s;">Buka Tautan →</a>
-                            </div>
-                        </div>`;
-                    } else if (cleanUrl.endsWith('.mp4') || cleanUrl.startsWith('blob:') || cleanUrl.startsWith('data:video') || cleanUrl.startsWith('http')) {
-                        mediaContent = `<video class="auto-pause-video" src="${cleanUrl}" preload="metadata" controls playsinline loop style="width: 100%; height: 480px; object-fit: cover; border-radius: 24px; border: 2px solid #fbcfe8; background:#000;" onerror="this.outerHTML='<div class=\\'empty-portrait-video\\'></div>'"></video>`;
+                    if (rawUrl !== '' && rawUrl !== '#' && rawUrl !== 'images/video-1.mp4' && !rawUrl.startsWith('[')) {
+                        let cleanUrl = rawUrl.replace(/^#/, '').trim();
+                        if (cleanUrl.startsWith('idb://')) {
+                            const idbKey = cleanUrl.replace('idb://', '');
+                            mediaContent = `<div class="empty-portrait-video" data-idb-slot="${escHtml(idbKey)}"></div>`;
+                        } else if (cleanUrl.includes('tiktok.com') || cleanUrl.includes('instagram.com')) {
+                            let platformName = cleanUrl.includes('tiktok.com') ? 'TikTok' : 'Instagram';
+                            mediaContent = `<div style="position:relative; width:100%; height:480px; border-radius:24px; border:2px solid #fbcfe8; overflow:hidden; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+                                <div style="position:absolute; inset:0; background:linear-gradient(135deg, #2b4c7e 0%, #ff1493 100%); opacity:0.85;"></div>
+                                <div style="position:relative; z-index:2; padding:20px; display:flex; flex-direction:column; align-items:center; gap:14px;">
+                                    <div style="width:60px; height:60px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.5rem; box-shadow:0 6px 20px rgba(0,0,0,0.4);">▶</div>
+                                    <span style="color:#fff; font-weight:700; font-size:1.05rem; text-shadow:0 2px 8px rgba(0,0,0,0.8);">Tonton di ${platformName}</span>
+                                    <a href="${escHtml(cleanUrl)}" target="_blank" style="background:#fff; color:var(--secondary); padding:10px 24px; border-radius:50px; font-weight:800; font-size:0.9rem; text-decoration:none; box-shadow:0 4px 15px rgba(0,0,0,0.3); transition:0.2s;">Buka Tautan →</a>
+                                </div>
+                            </div>`;
+                        } else if (cleanUrl.endsWith('.mp4') || cleanUrl.startsWith('blob:') || cleanUrl.startsWith('data:video') || cleanUrl.startsWith('http')) {
+                            mediaContent = `<video class="auto-pause-video" src="${escHtml(cleanUrl)}" preload="metadata" controls playsinline loop style="width: 100%; height: 480px; object-fit: cover; border-radius: 24px; border: 2px solid #fbcfe8; background:#000;" onerror="this.outerHTML='<div class=\\'empty-portrait-video\\'></div>'"></video>`;
+                        }
                     }
-                }
-                return `<div class="slide-item-video">${mediaContent}</div>`;
-            }).join('');
+                    return `<div class="slide-item-video">${mediaContent}</div>`;
+                }).join('');
 
-            attachAutoPauseListeners();
-
-            setTimeout(async () => {
-                const idbSlots = document.querySelectorAll('[data-idb-slot]');
-                for (const slotEl of idbSlots) {
-                    const key = slotEl.getAttribute('data-idb-slot');
-                    const record = await getMediaFromIDB(key);
-                    if (record && (record instanceof Blob || record.buffer)) {
-                        const blob = (record instanceof Blob) ? record : new Blob([record.buffer], { type: record.type || 'video/mp4' });
-                        const blobUrl = URL.createObjectURL(blob);
-                        slotEl.outerHTML = `<video class="auto-pause-video" src="${blobUrl}" preload="metadata" controls playsinline loop style="width: 100%; height: 480px; object-fit: cover; border-radius: 24px; border: 2px solid #fbcfe8; background:#000;"></video>`;
-                    }
-                }
                 attachAutoPauseListeners();
-            }, 50);
+
+                setTimeout(async () => {
+                    const idbSlots = document.querySelectorAll('[data-idb-slot]');
+                    for (const slotEl of idbSlots) {
+                        const key = slotEl.getAttribute('data-idb-slot');
+                        const record = await getMediaFromIDB(key);
+                        if (record && (record instanceof Blob || record.buffer)) {
+                            const blob = (record instanceof Blob) ? record : new Blob([record.buffer], { type: record.type || 'video/mp4' });
+                            const blobUrl = URL.createObjectURL(blob);
+                            slotEl.outerHTML = `<video class="auto-pause-video" src="${blobUrl}" preload="metadata" controls playsinline loop style="width: 100%; height: 480px; object-fit: cover; border-radius: 24px; border: 2px solid #fbcfe8; background:#000;"></video>`;
+                        }
+                    }
+                    attachAutoPauseListeners();
+                }, 50);
+            }
 
             if (cms && cms.footer) {
                 document.getElementById('fBrand').textContent = cms.footer.brand;
@@ -567,10 +603,10 @@
             applyCMS();
         }
 
-        // 1. EKSEKUSI SINKRON INSTAN (0ms): Langsung pasang bahasa & data CMS sebelum layar digambar browser!
-        setLanguage(currentLang);
+        if (hasInitialLocal) {
+            setLanguage(currentLang);
+        }
 
-        // 2. SINKRONISASI LATAR BELAKANG TANPA KEDIP (Smart Diffing): Hanya render ulang jika data benar-benar berubah
         async function syncLatestCMS() {
             const localSaved = localStorage.getItem('ohsnap_cms_data');
             if (localSaved) {
@@ -578,7 +614,7 @@
                     const parsed = JSON.parse(localSaved);
                     if (parsed && JSON.stringify(parsed) + '_' + currentLang !== lastRenderedSignature) {
                         cms = parsed;
-                        applyCMS();
+                        setLanguage(currentLang);
                     }
                 } catch (e) {}
             }
@@ -586,14 +622,17 @@
             if (idbBackup && (!cms.lastUpdated || (idbBackup.lastUpdated && idbBackup.lastUpdated > Number(cms.lastUpdated || 0)))) {
                 if (JSON.stringify(idbBackup) + '_' + currentLang !== lastRenderedSignature) {
                     cms = idbBackup;
-                    applyCMS();
+                    setLanguage(currentLang);
                 }
             }
             const cloudCms = await OhSnapCloud.pullIfNewer();
             if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
                 cms = cloudCms;
-                applyCMS();
+                setLanguage(currentLang);
+            } else if (!lastRenderedSignature) {
+                setLanguage(currentLang);
             }
+            document.documentElement.classList.remove('awaiting-first-cloud');
         }
 
         window.addEventListener('storage', () => { syncLatestCMS(); });

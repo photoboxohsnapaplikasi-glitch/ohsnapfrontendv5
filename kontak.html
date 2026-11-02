@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kontak - OH SNAP! Photobox</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        (function() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('ohsnap_cms_data'));
+                if (saved && saved.colors) {
+                    const r = document.documentElement.style;
+                    if (saved.colors.primary) r.setProperty('--primary', saved.colors.primary);
+                    if (saved.colors.secondary) r.setProperty('--secondary', saved.colors.secondary);
+                    if (saved.colors.bg) r.setProperty('--bg-main', saved.colors.bg);
+                    if (saved.colors.footer) r.setProperty('--footer-bg', saved.colors.footer);
+                }
+            } catch (e) {}
+        })();
+    </script>
     <style>
         :root { --primary: #ff1493; --secondary: #2b4c7e; --bg-main: #fff0f5; --footer-bg: #18171d; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -41,10 +55,6 @@
         .footer-left h3 { color: #ffffff; font-size: 1.2rem; margin-bottom: 15px; }
         .footer-left p, .footer-left address { font-style: normal; font-size: 0.95rem; line-height: 1.6; margin-bottom: 12px; color: #9ca3af; }
         .footer-left a { color: var(--primary); text-decoration: none; }
-        .footer-helpdesk { margin-top: 16px; }
-        .footer-helpdesk h4 { color: #fff; font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
-        .footer-helpdesk ul { list-style: none; padding: 0; }
-        .footer-helpdesk li { margin-bottom: 6px; font-size: 0.95rem; }
         .footer-helpdesk { margin-top: 16px; }
         .footer-helpdesk h4 { color: #ffffff; font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
         .footer-helpdesk ul { list-style: none; padding: 0; }
@@ -140,9 +150,10 @@
 
     <script src="cms-cloud.js"></script>
     <script>
-        const API_URL = 'http://localhost:3000/api';
         let currentLang = localStorage.getItem('siteLang') || 'id';
-        let cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')) || null;
+        let cms = null;
+        try { cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
+        let lastRenderedSignature = '';
 
         const menuToggle = document.getElementById('menuToggle');
         const navContainer = document.getElementById('navContainer');
@@ -166,6 +177,7 @@
                 document.getElementById('fCardDesc').textContent = currentLang === 'en' ? (cms.footer.cardDescEn || 'Find the nearest booth and studio in your city to capture your special moments today!') : (cms.footer.cardDescId || 'Temukan booth dan studio terdekat di kotamu untuk abadikan momen serumu hari ini!');
                 document.getElementById('fCopy').textContent = cms.footer.copyright;
             }
+            try { lastRenderedSignature = JSON.stringify(cms) + '_' + currentLang; } catch (e) {}
         }
 
         function setLanguage(lang) {
@@ -180,14 +192,22 @@
             applyCMS();
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            setLanguage(currentLang);
+        // Render sinkron instan (0ms) tanpa kedipan
+        setLanguage(currentLang);
+
+        async function syncLatestCMS() {
             try {
                 const cloudCms = await OhSnapCloud.pullIfNewer();
-                if (cloudCms) cms = cloudCms;
+                if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
+                    cms = cloudCms;
+                    applyCMS();
+                }
             } catch (e) {}
-            applyCMS();
-        });
+        }
+
+        window.addEventListener('storage', () => { syncLatestCMS(); });
+        window.addEventListener('focus', () => { syncLatestCMS(); });
+        syncLatestCMS();
     </script>
 </body>
 </html>

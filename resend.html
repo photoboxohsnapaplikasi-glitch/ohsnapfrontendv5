@@ -5,10 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resend Softcopy - OH SNAP! Photobox</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        (function() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('ohsnap_cms_data'));
+                if (saved && saved.colors) {
+                    const r = document.documentElement.style;
+                    if (saved.colors.primary) r.setProperty('--primary', saved.colors.primary);
+                    if (saved.colors.secondary) r.setProperty('--secondary', saved.colors.secondary);
+                    if (saved.colors.bg) r.setProperty('--bg-main', saved.colors.bg);
+                    if (saved.colors.footer) r.setProperty('--footer-bg', saved.colors.footer);
+                }
+            } catch (e) {}
+        })();
+    </script>
     <style>
         :root { --primary: #ff1493; --secondary: #2b4c7e; --bg-main: #fff0f5; --footer-bg: #18171d; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; }
+        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; overflow-x: hidden; }
         header { display: flex; justify-content: space-between; align-items: center; height: 85px; padding: 0 4%; background: var(--primary); position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         .logo-container { display: flex; align-items: center; gap: 12px; text-decoration: none; z-index: 1001; }
         .brand-logo-img { width: 42px; height: 42px; object-fit: contain; border-radius: 50%; border: 2px solid #fff; }
@@ -66,7 +80,7 @@
 
         @media screen and (max-width: 768px) {
             .menu-toggle { display: flex; }
-            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background: #fff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; }
+            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background: #fff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; box-shadow: 10px 0 30px rgba(0,0,0,0.1); }
             .nav-container.active { left: 0; }
             .nav-menu { flex-direction: column; width: 100%; }
             .nav-menu a { color: var(--secondary); padding: 14px 0; border-bottom: 1px solid #f3f4f6; width: 100%; }
@@ -180,11 +194,17 @@
 
     <script src="cms-cloud.js"></script>
     <script>
-        const API_URL = 'http://localhost:3000/api';
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyum2HVg2InZDhEyeata3I2hTbPUQzzqyKHsEtgA9Z3vRCF2CeTjwzGTCHd4tszlOMm/exec';
 
         let currentLang = localStorage.getItem('siteLang') || 'id';
-        let cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')) || null;
+        let cms = null;
+        try { cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
+        let lastRenderedSignature = '';
+
+        function escHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
 
         document.getElementById('menuToggle').addEventListener('click', () => {
             document.getElementById('navContainer').classList.toggle('active');
@@ -287,7 +307,7 @@
                 const currentVal = branchSelect.value;
                 branchSelect.innerHTML = cms.locations.map(l => {
                     const label = `${l.name || 'Cabang'}${l.floor ? ' ' + l.floor.replace(/^Lantai\s+/i, 'Lt.') : ''}`;
-                    return `<option value="${label}">${label}</option>`;
+                    return `<option value="${escHtml(label)}">${escHtml(label)}</option>`;
                 }).join('');
                 if (currentVal && Array.from(branchSelect.options).some(o => o.value === currentVal)) {
                     branchSelect.value = currentVal;
@@ -303,6 +323,7 @@
                 document.getElementById('fCardDesc').textContent = currentLang === 'en' ? (cms.footer.cardDescEn || 'Find the nearest booth and studio in your city to capture your special moments today!') : (cms.footer.cardDescId || 'Temukan booth dan studio terdekat di kotamu untuk abadikan momen serumu hari ini!');
                 document.getElementById('fCopy').textContent = cms.footer.copyright;
             }
+            try { lastRenderedSignature = JSON.stringify(cms) + '_' + currentLang; } catch (e) {}
         }
 
         function setLanguage(lang) {
@@ -314,14 +335,22 @@
             applyCMS();
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            setLanguage(currentLang);
+        // Render sinkron instan (0ms) tanpa kedipan
+        setLanguage(currentLang);
+
+        async function syncLatestCMS() {
             try {
                 const cloudCms = await OhSnapCloud.pullIfNewer();
-                if (cloudCms) cms = cloudCms;
+                if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
+                    cms = cloudCms;
+                    applyCMS();
+                }
             } catch (e) {}
-            applyCMS();
-        });
+        }
+
+        window.addEventListener('storage', () => { syncLatestCMS(); });
+        window.addEventListener('focus', () => { syncLatestCMS(); });
+        syncLatestCMS();
     </script>
 </body>
 </html>
