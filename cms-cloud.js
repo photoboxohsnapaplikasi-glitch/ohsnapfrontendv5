@@ -41,7 +41,7 @@
       try { local = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
       const remoteTime = Number(remote.lastUpdated || 0);
       const localTime = Number((local && local.lastUpdated) || 0);
-      const isAdminSession = !!localStorage.getItem('ohsnap_admin_logged');
+      const isAdminSession = !!(sessionStorage.getItem('ohsnap_admin_logged') || localStorage.getItem('ohsnap_admin_logged'));
 
       if (!isAdminSession || !local || remoteTime >= localTime) {
         try {

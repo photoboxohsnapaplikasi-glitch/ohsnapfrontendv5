@@ -8,7 +8,7 @@
     <style>
         :root { --primary: #ff1493; --secondary: #2b4c7e; --bg-main: #fff0f5; --footer-bg: #18171d; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; }
+        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; overflow-x: hidden; }
         header { display: flex; justify-content: space-between; align-items: center; height: 85px; padding: 0 4%; background: var(--primary); position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); }
         .logo-container { display: flex; align-items: center; gap: 12px; text-decoration: none; z-index: 1001; }
         .brand-logo-img { width: 42px; height: 42px; object-fit: contain; border-radius: 50%; border: 2px solid #ffffff; }
@@ -32,34 +32,44 @@
         .cs-info h3 { font-size: 1.2rem; font-weight: 700; color: var(--secondary); margin-bottom: 8px; }
         .cs-info p { color: #4b5563; font-size: 0.95rem; }
         .social-buttons { display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 380px; }
-        .social-btn { display: flex; align-items: center; gap: 14px; background: #ffffff; color: var(--secondary); padding: 14px 20px; border-radius: 14px; border: 1px solid #fbcfe8; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: 0.3s; }
+        .social-btn { display: flex; align-items: center; gap: 14px; background: #ffffff; color: var(--secondary); padding: 14px 20px; border-radius: 14px; border: 1px solid #fbcfe8; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: 0.3s; word-break: break-word; }
         .social-btn:hover { background: var(--primary); color: #ffffff; border-color: var(--primary); transform: translateY(-2px); }
         .social-btn svg { width: 22px; height: 22px; fill: currentColor; flex-shrink: 0; }
 
         footer { background-color: var(--footer-bg); color: #b5b5bc; padding: 60px 8% 30px; border-top: 2px solid #fbcfe8; margin-top: 60px; }
         .footer-content { max-width: 1300px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; }
         .footer-left h3 { color: #ffffff; font-size: 1.2rem; margin-bottom: 15px; }
-        .footer-left p, .footer-left address { font-style: normal; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #9ca3af; }
+        .footer-left p, .footer-left address { font-style: normal; font-size: 0.95rem; line-height: 1.6; margin-bottom: 12px; color: #9ca3af; }
         .footer-left a { color: var(--primary); text-decoration: none; }
+        .footer-helpdesk { margin-top: 16px; }
+        .footer-helpdesk h4 { color: #fff; font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+        .footer-helpdesk ul { list-style: none; padding: 0; }
+        .footer-helpdesk li { margin-bottom: 6px; font-size: 0.95rem; }
+        .footer-helpdesk { margin-top: 16px; }
+        .footer-helpdesk h4 { color: #ffffff; font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+        .footer-helpdesk ul { list-style: none; padding: 0; }
+        .footer-helpdesk li { margin-bottom: 6px; font-size: 0.95rem; }
         .footer-location-card { background: linear-gradient(145deg, #201f26 0%, #18171d 100%); border: 1px solid rgba(255, 20, 147, 0.3); border-radius: 20px; padding: 35px 30px; text-decoration: none; display: flex; flex-direction: column; align-items: center; text-align: center; transition: 0.35s; }
         .footer-location-card:hover { border-color: var(--primary); transform: translateY(-5px); }
         .footer-location-card h4 { color: #ffffff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
-        .footer-location-card p { color: #9ca3af; font-size: 0.95rem; margin-bottom: 25px; }
-        .location-btn-action { background: var(--primary); color: #ffffff; padding: 14px 32px; border-radius: 50px; font-weight: 700; font-size: 0.95rem; }
+        .footer-location-card p { color: #9ca3af; font-size: 0.95rem; margin-bottom: 22px; }
+        .location-btn-action { background: var(--primary); color: #ffffff; padding: 12px 28px; border-radius: 50px; font-weight: 700; font-size: 0.95rem; }
         .footer-bottom { max-width: 1300px; margin: 40px auto 0; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); text-align: center; font-size: 0.85rem; color: #6b7280; }
 
         @media screen and (max-width: 768px) {
             .menu-toggle { display: flex; }
-            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background-color: #ffffff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; border-right: 1px solid #fbcfe8; }
+            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background-color: #ffffff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; border-right: 1px solid #fbcfe8; box-shadow: 10px 0 30px rgba(0,0,0,0.1); }
             .nav-container.active { left: 0; }
             .nav-menu { flex-direction: column; width: 100%; }
             .nav-menu a { font-size: 1.05rem; padding: 14px 0; border-bottom: 1px solid #f3f4f6; width: 100%; color: var(--secondary); }
             .lang-switcher { width: 100%; justify-content: center; background: #fdf2f8; border: 1px solid #fbcfe8; padding: 6px; }
             .lang-btn { color: var(--secondary); width: 50%; text-align: center; }
             .lang-btn.active { background: var(--primary); color: #ffffff; }
-            .contact-inner-box { flex-direction: column; align-items: stretch; padding: 25px; }
+            .contact-container { padding: 40px 5% 40px; }
+            .contact-card-wrapper { padding: 25px 20px; }
+            .contact-inner-box { flex-direction: column; align-items: stretch; padding: 22px 18px; }
             .social-buttons { max-width: 100%; }
-            .section-title { font-size: 2rem; }
+            .section-title { font-size: 1.9rem; }
             .footer-content { grid-template-columns: 1fr; }
         }
     </style>
@@ -111,6 +121,13 @@
                 <address><strong data-en="Branches:" data-id="Cabang:">Cabang:</strong> <span id="fBranches">Kediri Mall Lt.5, Plaza Cilacap Lt.3, Laksana Baru Lt.3, Plaza Pekalongan Lt.2, Yogya Pemalang Lt.3</span></address>
                 <p>Instagram: <a id="fIg" href="https://www.instagram.com/ohsnap_photobox" target="_blank">@ohsnap_photobox</a></p>
                 <p>TikTok: <a id="fTt" href="https://www.tiktok.com/@ohsnap_photobox" target="_blank">@ohsnap_photobox</a></p>
+                <div class="footer-helpdesk">
+                    <h4 data-en="Helpdesk" data-id="Bantuan">Helpdesk</h4>
+                    <ul>
+                        <li><a href="resend.html" data-en="Resend Softcopy" data-id="Kirim Ulang Softcopy">Resend Softcopy</a></li>
+                        <li><a href="login.html" data-en="Admin Login" data-id="Masuk Admin">Login Admin</a></li>
+                    </ul>
+                </div>
             </div>
             <a href="lokasi.html" class="footer-location-card">
                 <h4 id="fCardTitle">Find nearby OH SNAP! Studio</h4>
