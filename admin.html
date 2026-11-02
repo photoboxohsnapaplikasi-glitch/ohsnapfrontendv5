@@ -14,7 +14,7 @@
             --border-color: #e2e8f0;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { display: flex; min-height: 100vh; background: var(--bg-body); color: var(--secondary); }
+        body { display: flex; min-height: 100vh; background: var(--bg-body); color: var(--secondary); overflow-x: hidden; }
 
         .sidebar {
             width: 270px; background: var(--sidebar-bg); color: #ffffff; display: flex; flex-direction: column;
@@ -444,7 +444,6 @@
             }
         })();
 
-        const API_URL = 'http://localhost:3000/api';
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyum2HVg2InZDhEyeata3I2hTbPUQzzqyKHsEtgA9Z3vRCF2CeTjwzGTCHd4tszlOMm/exec';
         const SUPABASE_URL = 'https://kbkayevpbeijuuufnrgt.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_AG1wxrYq1moobWYJjC6htQ_TB-Siffl';
@@ -575,10 +574,18 @@
             });
         }
 
+        const LEGACY_PLACEHOLDER_IMGS = [
+            'images/hero-banner.jpg',
+            'images/about-img.jpg',
+            'images/banner-layanan.jpg',
+            'images/banner-frame.jpg',
+            'images/banner-lokasi.jpg'
+        ];
+
         const defaultCMS = {
             colors: { primary: '#ff1493', secondary: '#2b4c7e', bg: '#fff0f5', footer: '#18171d' },
             banners: {
-                home: { titleId: 'LANGSUNG CETAK BAWA PULANG', titleEn: 'INSTANT PRINT & TAKE IT HOME', subId: 'Photobox & Self-Photo Studio kekinian.', subEn: 'Trendy Photobox Studio.', imgUrl: 'images/hero-banner.jpg' },
+                home: { titleId: 'LANGSUNG CETAK BAWA PULANG', titleEn: 'INSTANT PRINT & TAKE IT HOME', subId: 'Photobox & Self-Photo Studio kekinian.', subEn: 'Trendy Photobox Studio.', imgUrl: '' },
                 about: { 
                     titleId: 'About Our Story', titleEn: 'About Our Story', 
                     subId: 'OH SNAP! Photobox hadir dari semangat untuk mengabadikan setiap momen hangat, spontan, dan tak terlupakan bersama orang-orang tersayang. Berawal dari konsep photobox tematik yang unik dan kreatif, kini kami hadir di berbagai pusat perbelanjaan (Mall).', 
@@ -586,11 +593,11 @@
                     btnId: 'Read more →', btnEn: 'Read more →',
                     fullId: 'OH SNAP! Photobox was born from the spirit of capturing warm, spontaneous, and unforgettable moments with your favorite people. Starting with thematic booths designed creatively, we now serve various malls across Indonesia.\n\nWith studio-grade lighting, high-resolution cameras, instant prints, and digital softcopies, OH SNAP! continues to innovate with thematic concepts like Train Booth, Hotel Booth, Elevator Booth, and many more.\n\nWe are committed to always providing the best service, cheerful atmosphere, and modern technology so that every visit to OH SNAP! leaves a sweet memory that lasts forever.',
                     fullEn: 'OH SNAP! Photobox was born from the spirit of capturing warm, spontaneous, and unforgettable moments with your favorite people. Starting with thematic booths designed creatively, we now serve various malls across Indonesia.\n\nWith studio-grade lighting, high-resolution cameras, instant prints, and digital softcopies, OH SNAP! continues to innovate with thematic concepts like Train Booth, Hotel Booth, Elevator Booth, and many more.\n\nWe are committed to always providing the best service, cheerful atmosphere, and modern technology so that every visit to OH SNAP! leaves a sweet memory that lasts forever.',
-                    imgUrl: 'images/about-img.jpg' 
+                    imgUrl: '' 
                 },
-                layanan: { titleId: 'Layanan <span>Kami</span>', titleEn: 'Our <span>Services</span>', subId: 'Pilih paket sesi foto terbaik.', subEn: 'Choose package.', imgUrl: 'images/banner-layanan.jpg' },
-                frame: { titleId: 'Koleksi <span>Frame</span>', titleEn: 'Exclusive <span>Frame</span>', subId: 'Desain frame tematik yang selalu update setiap bulan!', subEn: 'Thematic frames.', imgUrl: 'images/banner-frame.jpg' },
-                lokasi: { titleId: 'Lokasi <span>Studio</span>', titleEn: 'Our <span>Locations</span>', subId: 'Kunjungi cabang terdekat kami di kotamu.', subEn: 'Visit branch.', imgUrl: 'images/banner-lokasi.jpg' }
+                layanan: { titleId: 'Layanan <span>Kami</span>', titleEn: 'Our <span>Services</span>', subId: 'Pilih paket sesi foto terbaik.', subEn: 'Choose package.', imgUrl: '' },
+                frame: { titleId: 'Koleksi <span>Frame</span>', titleEn: 'Exclusive <span>Frame</span>', subId: 'Desain frame tematik yang selalu update setiap bulan!', subEn: 'Thematic frames.', imgUrl: '' },
+                lokasi: { titleId: 'Lokasi <span>Studio</span>', titleEn: 'Our <span>Locations</span>', subId: 'Kunjungi cabang terdekat kami di kotamu.', subEn: 'Visit branch.', imgUrl: '' }
             },
             titles: { 
                 titlePromoId: 'Promo <span>Spesial</span> Bulan Ini', subPromoId: 'Jangan lewatkan penawaran menarik di berbagai cabang OH SNAP! Photobox', 
@@ -669,6 +676,12 @@
             if (parsed.banners) {
                 Object.keys(parsed.banners).forEach(k => {
                     merged.banners[k] = Object.assign({}, merged.banners[k] || {}, parsed.banners[k]);
+                    if (LEGACY_PLACEHOLDER_IMGS.includes(merged.banners[k].imgUrl)) {
+                        merged.banners[k].imgUrl = '';
+                    }
+                    if (merged.banners[k].aboutImgUrl && LEGACY_PLACEHOLDER_IMGS.includes(merged.banners[k].aboutImgUrl)) {
+                        merged.banners[k].aboutImgUrl = '';
+                    }
                 });
             }
             if (parsed.titles) Object.assign(merged.titles, parsed.titles);
@@ -800,7 +813,7 @@
             const wrap = document.getElementById('bannerPreviewWrap');
             if (wrap) {
                 const url = (cmsData.banners[page] && cmsData.banners[page].imgUrl) ? cmsData.banners[page].imgUrl : '';
-                if (url && url.trim() !== '') {
+                if (url && url.trim() !== '' && !LEGACY_PLACEHOLDER_IMGS.includes(url)) {
                     wrap.innerHTML = `<div class="media-preview-box"><img src="${escAttr(url)}" onerror="this.style.display='none'"><span>✅ Gambar Banner Aktif</span></div>`;
                 } else {
                     wrap.innerHTML = '';
@@ -810,7 +823,7 @@
             const aboutWrap = document.getElementById('aboutPreviewWrap');
             if (aboutWrap) {
                 const aboutUrl = (cmsData.banners.about && cmsData.banners.about.imgUrl) ? cmsData.banners.about.imgUrl : '';
-                if (aboutUrl && aboutUrl.trim() !== '') {
+                if (aboutUrl && aboutUrl.trim() !== '' && !LEGACY_PLACEHOLDER_IMGS.includes(aboutUrl)) {
                     aboutWrap.innerHTML = `<div class="media-preview-box"><img src="${escAttr(aboutUrl)}" onerror="this.style.display='none'"><span>✅ Foto About Story Aktif</span></div>`;
                 } else {
                     aboutWrap.innerHTML = '';
@@ -1024,7 +1037,7 @@
                 imgInput.value = '';
                 imgInput.placeholder = '✅ Foto dari komputer sudah tersimpan (lihat preview di bawah)';
             } else {
-                imgInput.value = b.imgUrl !== undefined ? b.imgUrl : '';
+                imgInput.value = (b.imgUrl && !LEGACY_PLACEHOLDER_IMGS.includes(b.imgUrl)) ? b.imgUrl : '';
                 imgInput.placeholder = 'Klik Choose File di bawah atau tempel link URL...';
             }
 
@@ -1035,7 +1048,7 @@
                     aboutQuickInput.value = '';
                     aboutQuickInput.placeholder = '✅ Foto About Story sudah tersimpan (lihat preview di bawah)';
                 } else {
-                    aboutQuickInput.value = aboutUrl;
+                    aboutQuickInput.value = (aboutUrl && !LEGACY_PLACEHOLDER_IMGS.includes(aboutUrl)) ? aboutUrl : '';
                     aboutQuickInput.placeholder = 'Klik Choose File di bawah atau tempel link URL...';
                 }
             }
@@ -1122,7 +1135,14 @@
             }, 100);
         }
         function addVideoItem() { cmsData.videos.push({title:'Baru', url:''}); persistData(); renderVideos(); }
-        function removeVideo(i) { if(cmsData.videos.length<=5) return alert('Batas minimal Video Feed adalah 5!'); cmsData.videos.splice(i,1); persistData(); renderVideos(); }
+        function removeVideo(i) {
+            if (cmsData.videos.length <= 5) return alert('Batas minimal Video Feed adalah 5!');
+            const oldUrl = cmsData.videos[i] && cmsData.videos[i].url;
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            cmsData.videos.splice(i, 1);
+            persistData();
+            renderVideos();
+        }
         function moveVideo(index, dir) { const t = index + dir; if(t<0||t>=cmsData.videos.length)return; const tmp=cmsData.videos[index]; cmsData.videos[index]=cmsData.videos[t]; cmsData.videos[t]=tmp; persistData(); renderVideos(); }
 
         function renderStudios() {
@@ -1142,7 +1162,14 @@
             });
         }
         function addStudioItem() { cmsData.studios.push({title:'Studio Baru', desc:'', img:''}); persistData(); renderStudios(); }
-        function removeStudio(i) { if(cmsData.studios.length<=4) return alert('Batas minimal Suasana Studio adalah 4!'); cmsData.studios.splice(i,1); persistData(); renderStudios(); }
+        function removeStudio(i) {
+            if (cmsData.studios.length <= 4) return alert('Batas minimal Suasana Studio adalah 4!');
+            const oldUrl = cmsData.studios[i] && cmsData.studios[i].img;
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            cmsData.studios.splice(i, 1);
+            persistData();
+            renderStudios();
+        }
         function moveStudio(index, dir) { const t = index + dir; if(t<0||t>=cmsData.studios.length)return; const tmp=cmsData.studios[index]; cmsData.studios[index]=cmsData.studios[t]; cmsData.studios[t]=tmp; persistData(); renderStudios(); }
 
         function renderPromos() {
@@ -1163,7 +1190,14 @@
             });
         }
         function addPromoItem() { cmsData.promos.push({title:'Promo Baru', badge:'PROMO', desc:'', img:''}); persistData(); renderPromos(); }
-        function removePromo(i) { if(cmsData.promos.length<=3) return alert('Batas minimal Kelola Promo adalah 3!'); cmsData.promos.splice(i,1); persistData(); renderPromos(); }
+        function removePromo(i) {
+            if (cmsData.promos.length <= 3) return alert('Batas minimal Kelola Promo adalah 3!');
+            const oldUrl = cmsData.promos[i] && cmsData.promos[i].img;
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            cmsData.promos.splice(i, 1);
+            persistData();
+            renderPromos();
+        }
         function movePromo(index, dir) { const t = index + dir; if(t<0||t>=cmsData.promos.length)return; const tmp=cmsData.promos[index]; cmsData.promos[index]=cmsData.promos[t]; cmsData.promos[t]=tmp; persistData(); renderPromos(); }
 
         function renderFrames() {
@@ -1196,7 +1230,14 @@
             });
         }
         function addFrameItem() { if(!cmsData.frames) cmsData.frames=[]; cmsData.frames.push({title:'Frame Baru', category:'New', desc:'', img:''}); persistData(); renderFrames(); }
-        function removeFrame(i) { if(cmsData.frames.length<=5) return alert('Batas minimal Frame Layout adalah 5!'); cmsData.frames.splice(i,1); persistData(); renderFrames(); }
+        function removeFrame(i) {
+            if (cmsData.frames.length <= 5) return alert('Batas minimal Frame Layout adalah 5!');
+            const oldUrl = cmsData.frames[i] && cmsData.frames[i].img;
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            cmsData.frames.splice(i, 1);
+            persistData();
+            renderFrames();
+        }
         function moveFrame(index, dir) { const t = index + dir; if(t<0||t>=cmsData.frames.length)return; const tmp=cmsData.frames[index]; cmsData.frames[index]=cmsData.frames[t]; cmsData.frames[t]=tmp; persistData(); renderFrames(); }
 
         function renderServices() {
@@ -1229,7 +1270,14 @@
             });
         }
         function addServiceItem() { if(!cmsData.services) cmsData.services=[]; cmsData.services.push({titleId:'Layanan Baru', price:'Rp 0', descId:'', img:''}); persistData(); renderServices(); }
-        function removeSrv(i) { if(cmsData.services.length<=3) return alert('Batas minimal Layanan adalah 3!'); cmsData.services.splice(i,1); persistData(); renderServices(); }
+        function removeSrv(i) {
+            if (cmsData.services.length <= 3) return alert('Batas minimal Layanan adalah 3!');
+            const oldUrl = cmsData.services[i] && cmsData.services[i].img;
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            cmsData.services.splice(i, 1);
+            persistData();
+            renderServices();
+        }
         function moveService(index, dir) { const t = index + dir; if(t<0||t>=cmsData.services.length)return; const tmp=cmsData.services[index]; cmsData.services[index]=cmsData.services[t]; cmsData.services[t]=tmp; persistData(); renderServices(); }
 
         function renderLocations() {
@@ -1251,7 +1299,14 @@
             });
         }
         function addLocationItem() { cmsData.locations.push({name:'Cabang Baru', floor:'Lt.1', hours:'10.00 - 22.00', mapUrl:'', img:''}); persistData(); renderLocations(); }
-        function removeLoc(i) { if(cmsData.locations.length<=5) return alert('Batas minimal Lokasi Cabang adalah 5!'); cmsData.locations.splice(i,1); persistData(); renderLocations(); }
+        function removeLoc(i) {
+            if (cmsData.locations.length <= 5) return alert('Batas minimal Lokasi Cabang adalah 5!');
+            const oldUrl = cmsData.locations[i] && cmsData.locations[i].img;
+            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            cmsData.locations.splice(i, 1);
+            persistData();
+            renderLocations();
+        }
         function moveLocation(index, dir) { const t = index + dir; if(t<0||t>=cmsData.locations.length)return; const tmp=cmsData.locations[index]; cmsData.locations[index]=cmsData.locations[t]; cmsData.locations[t]=tmp; persistData(); renderLocations(); }
 
         function loadFooterState() {
@@ -1330,7 +1385,7 @@
                 cmsData.resendOverrides = {};
             }
             try {
-                const res = await fetch(SCRIPT_URL);
+                const res = await fetch(SCRIPT_URL + '?t=' + Date.now());
                 const data = await res.json();
                 if (data && Array.isArray(data)) {
                     resendList = data.map((item, idx) => {
@@ -1613,6 +1668,7 @@
 
         function markSynced(obj) {
             try {
+                saveCMSBackupToIDB(obj);
                 localStorage.setItem('ohsnap_cloud_snapshot', comparableCMS(obj));
                 localStorage.setItem('ohsnap_cloud_synced_at', String(obj.lastUpdated || Date.now()));
                 localStorage.setItem('ohsnap_cms_data', JSON.stringify(obj));
