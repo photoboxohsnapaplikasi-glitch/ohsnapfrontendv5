@@ -5,10 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lokasi Cabang - OH SNAP! Photobox</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        (function() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('ohsnap_cms_data'));
+                if (saved && saved.colors) {
+                    const r = document.documentElement.style;
+                    if (saved.colors.primary) r.setProperty('--primary', saved.colors.primary);
+                    if (saved.colors.secondary) r.setProperty('--secondary', saved.colors.secondary);
+                    if (saved.colors.bg) r.setProperty('--bg-main', saved.colors.bg);
+                    if (saved.colors.footer) r.setProperty('--footer-bg', saved.colors.footer);
+                }
+            } catch (e) {}
+        })();
+    </script>
     <style>
         :root { --primary: #ff1493; --secondary: #2b4c7e; --bg-main: #fff0f5; --footer-bg: #18171d; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; }
+        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; overflow-x: hidden; }
         header { display: flex; justify-content: space-between; align-items: center; height: 85px; padding: 0 4%; background: var(--primary); position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         .logo-container { display: flex; align-items: center; gap: 12px; text-decoration: none; z-index: 1001; }
         .brand-logo-img { width: 42px; height: 42px; object-fit: contain; border-radius: 50%; border: 2px solid #fff; }
@@ -26,6 +40,7 @@
 
         .hero-banner-section {
             position: relative; width: 100%; height: 360px;
+            background-color: #18171d;
             background-size: cover; background-position: center;
             display: flex; align-items: center; justify-content: center;
             text-align: center; color: #fff; padding: 0 20px;
@@ -81,12 +96,13 @@
 
         @media screen and (max-width: 768px) {
             .menu-toggle { display: flex; }
-            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background: #fff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; }
+            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background: #fff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; box-shadow: 10px 0 30px rgba(0,0,0,0.1); }
             .nav-container.active { left: 0; }
             .nav-menu { flex-direction: column; width: 100%; }
             .nav-menu a { color: var(--secondary); padding: 14px 0; border-bottom: 1px solid #f3f4f6; width: 100%; }
-            .lang-switcher { width: 100%; background: #fdf2f8; }
-            .lang-btn { color: var(--secondary); width: 50%; text-align: center; } .lang-btn.active { background: var(--primary); color: #ffffff; }
+            .lang-switcher { width: 100%; justify-content: center; background: #fdf2f8; border: 1px solid #fbcfe8; padding: 6px; }
+            .lang-btn { color: var(--secondary); width: 50%; text-align: center; }
+            .lang-btn.active { background: var(--primary); color: #ffffff; }
             .hero-banner-section { height: 260px; }
             .hero-banner-content h1 { font-size: 1.8rem; }
             .footer-content { grid-template-columns: 1fr; }
@@ -116,10 +132,10 @@
         </div>
     </header>
 
-    <section class="hero-banner-section" id="heroBannerBg" style="background-image: url('images/banner-lokasi.jpg');">
+    <section class="hero-banner-section" id="heroBannerBg">
         <div class="hero-banner-content">
-            <h1 id="heroTitle">Lokasi <span>Studio</span></h1>
-            <p id="heroSub">Kunjungi cabang terdekat kami di kotamu dan abadikan keseruan bersama orang tersayang!</p>
+            <h1 id="heroTitle"></h1>
+            <p id="heroSub"></p>
         </div>
     </section>
 
@@ -155,7 +171,9 @@
     <script>
         const API_URL = 'http://localhost:3000/api';
         let currentLang = localStorage.getItem('siteLang') || 'id';
-        let cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')) || null;
+        let cms = null;
+        try { cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
+        let lastRenderedSignature = '';
 
         document.getElementById('menuToggle').addEventListener('click', () => {
             document.getElementById('navContainer').classList.toggle('active');
@@ -177,11 +195,13 @@
                 document.documentElement.style.setProperty('--bg-main', cms.colors.bg || '#fff0f5');
                 document.documentElement.style.setProperty('--footer-bg', cms.colors.footer || '#18171d');
             }
-            if (cms && cms.banners && cms.banners.lokasi) {
-                const b = cms.banners.lokasi;
-                document.getElementById('heroTitle').innerHTML = currentLang === 'en' ? (b.titleEn || b.titleId) : b.titleId;
-                document.getElementById('heroSub').textContent = currentLang === 'en' ? (b.subEn || b.subId) : b.subId;
-                if (b.imgUrl && b.imgUrl.trim() !== '') document.getElementById('heroBannerBg').style.backgroundImage = `url('${b.imgUrl}')`;
+            const b = (cms && cms.banners && cms.banners.lokasi) ? cms.banners.lokasi : { titleId: 'Lokasi <span>Studio</span>', titleEn: 'Our <span>Locations</span>', subId: 'Kunjungi cabang terdekat kami di kotamu dan abadikan keseruan bersama orang tersayang!', subEn: 'Visit our nearest branch in your city!', imgUrl: '' };
+            document.getElementById('heroTitle').innerHTML = currentLang === 'en' ? (b.titleEn || b.titleId) : b.titleId;
+            document.getElementById('heroSub').textContent = currentLang === 'en' ? (b.subEn || b.subId) : b.subId;
+            if (b.imgUrl && b.imgUrl.trim() !== '' && b.imgUrl !== 'images/banner-lokasi.jpg') {
+                document.getElementById('heroBannerBg').style.backgroundImage = `url('${b.imgUrl}')`;
+            } else {
+                document.getElementById('heroBannerBg').style.backgroundImage = 'none';
             }
 
             document.getElementById('locationsGrid').innerHTML = list.map(l => `
@@ -208,6 +228,7 @@
                 document.getElementById('fCardDesc').textContent = currentLang === 'en' ? (cms.footer.cardDescEn || 'Find the nearest booth and studio in your city to capture your special moments today!') : (cms.footer.cardDescId || 'Temukan booth dan studio terdekat di kotamu untuk abadikan momen serumu hari ini!');
                 document.getElementById('fCopy').textContent = cms.footer.copyright;
             }
+            try { lastRenderedSignature = JSON.stringify(cms) + '_' + currentLang; } catch (e) {}
         }
 
         function setLanguage(lang) {
@@ -219,14 +240,18 @@
             applyCMS();
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            setLanguage(currentLang);
+        // Render sinkron instan (0ms) tanpa kedipan
+        setLanguage(currentLang);
+
+        (async () => {
             try {
                 const cloudCms = await OhSnapCloud.pullIfNewer();
-                if (cloudCms) cms = cloudCms;
+                if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
+                    cms = cloudCms;
+                    applyCMS();
+                }
             } catch (e) {}
-            applyCMS();
-        });
+        })();
     </script>
 </body>
 </html>

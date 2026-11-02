@@ -5,10 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Our Story - OH SNAP! Photobox</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        (function() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('ohsnap_cms_data'));
+                if (saved && saved.colors) {
+                    const r = document.documentElement.style;
+                    if (saved.colors.primary) r.setProperty('--primary', saved.colors.primary);
+                    if (saved.colors.secondary) r.setProperty('--secondary', saved.colors.secondary);
+                    if (saved.colors.bg) r.setProperty('--bg-main', saved.colors.bg);
+                    if (saved.colors.footer) r.setProperty('--footer-bg', saved.colors.footer);
+                }
+            } catch (e) {}
+        })();
+    </script>
     <style>
         :root { --primary: #ff1493; --secondary: #2b4c7e; --bg-main: #fff0f5; --footer-bg: #18171d; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; }
+        body { background: var(--bg-main); color: var(--secondary); line-height: 1.6; overflow-x: hidden; }
         
         header { display: flex; justify-content: space-between; align-items: center; height: 85px; padding: 0 4%; background: var(--primary); position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         .logo-container { display: flex; align-items: center; gap: 12px; text-decoration: none; z-index: 1001; }
@@ -29,7 +43,7 @@
         .story-card { background: #fff; border: 1px solid #fbcfe8; border-radius: 24px; padding: 45px; box-shadow: 0 10px 30px rgba(255,182,193,0.2); }
         
         .story-img-box { width: 100%; height: 380px; border-radius: 18px; overflow: hidden; margin-bottom: 30px; border: 2px solid #fbcfe8; background: #fff; }
-        .story-img-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .story-img-box img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; }
 
         .story-card h1 { font-size: 2.3rem; font-weight: 800; margin-bottom: 20px; text-align: center; color: var(--secondary); }
         .story-card h1 span { color: var(--primary); }
@@ -52,12 +66,13 @@
 
         @media screen and (max-width: 768px) {
             .menu-toggle { display: flex; }
-            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background: #fff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; }
+            .nav-container { position: fixed; top: 0; left: -100%; width: 260px; height: 100vh; background: #fff; flex-direction: column; align-items: flex-start; padding: 90px 25px; transition: 0.3s; z-index: 999; box-shadow: 10px 0 30px rgba(0,0,0,0.1); }
             .nav-container.active { left: 0; }
             .nav-menu { flex-direction: column; width: 100%; }
             .nav-menu a { color: var(--secondary); padding: 14px 0; border-bottom: 1px solid #f3f4f6; width: 100%; }
-            .lang-switcher { width: 100%; background: #fdf2f8; }
-            .lang-btn { color: var(--secondary); width: 50%; text-align: center; } .lang-btn.active { background: var(--primary); color: #ffffff; }
+            .lang-switcher { width: 100%; justify-content: center; background: #fdf2f8; border: 1px solid #fbcfe8; padding: 6px; }
+            .lang-btn { color: var(--secondary); width: 50%; text-align: center; }
+            .lang-btn.active { background: var(--primary); color: #ffffff; }
             .story-card { padding: 25px; }
             .story-card h1 { font-size: 1.8rem; }
             .story-img-box { height: 240px; }
@@ -91,12 +106,10 @@
     <div class="story-container">
         <div class="story-card">
             <div class="story-img-box">
-                <img id="storyImg" src="images/about-img.jpg" alt="Our Story" onerror="this.style.display='none'">
+                <img id="storyImg" alt="Our Story" onload="this.style.opacity='1'" onerror="this.style.opacity='0'">
             </div>
-            <h1 id="storyTitle">OUR <span>STORY</span></h1>
-            <div id="storyText" class="story-content">
-                OH SNAP! Photobox hadir dari semangat untuk mengabadikan setiap momen hangat, spontan, dan tak terlupakan bersama orang-orang tersayang. Berawal dari konsep photobox tematik yang unik dan kreatif, kini kami hadir di berbagai pusat perbelanjaan (Mall).
-            </div>
+            <h1 id="storyTitle"></h1>
+            <div id="storyText" class="story-content"></div>
         </div>
     </div>
 
@@ -128,39 +141,50 @@
     <script>
         const API_URL = 'http://localhost:3000/api';
         let currentLang = localStorage.getItem('siteLang') || 'id';
-        let cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')) || null;
+        let cms = null;
+        try { cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
+        let lastRenderedSignature = '';
 
         document.getElementById('menuToggle').addEventListener('click', () => {
             document.getElementById('navContainer').classList.toggle('active');
         });
 
         function applyCMS() {
-            if (!cms) return;
-            if (cms.colors) {
+            if (cms && cms.colors) {
                 document.documentElement.style.setProperty('--primary', cms.colors.primary || '#ff1493');
                 document.documentElement.style.setProperty('--secondary', cms.colors.secondary || '#2b4c7e');
                 document.documentElement.style.setProperty('--bg-main', cms.colors.bg || '#fff0f5');
                 document.documentElement.style.setProperty('--footer-bg', cms.colors.footer || '#18171d');
             }
-            if (cms.banners && cms.banners.about) {
-                const ab = cms.banners.about;
-                const titleEl = document.getElementById('storyTitle');
-                const textEl = document.getElementById('storyText');
-                const imgEl = document.getElementById('storyImg');
+            const ab = (cms && cms.banners && cms.banners.about) ? cms.banners.about : {
+                titleId: 'OUR <span>STORY</span>',
+                titleEn: 'OUR <span>STORY</span>',
+                fullId: 'OH SNAP! Photobox hadir dari semangat untuk mengabadikan setiap momen hangat, spontan, dan tak terlupakan bersama orang-orang tersayang. Berawal dari konsep photobox tematik yang unik dan kreatif, kini kami hadir di berbagai pusat perbelanjaan (Mall).',
+                fullEn: 'OH SNAP! Photobox was born from the spirit of capturing warm, spontaneous, and unforgettable moments with your favorite people...',
+                imgUrl: ''
+            };
+            const titleEl = document.getElementById('storyTitle');
+            const textEl = document.getElementById('storyText');
+            const imgEl = document.getElementById('storyImg');
 
-                if (titleEl) {
-                    titleEl.innerHTML = currentLang === 'en' ? (ab.titleEn || 'OUR <span>STORY</span>') : (ab.titleId || 'OUR <span>STORY</span>');
-                }
-                if (textEl) {
-                    const fullTextId = ab.fullId || ab.subId || '';
-                    const fullTextEn = ab.fullEn || ab.subEn || '';
-                    textEl.textContent = currentLang === 'en' ? (fullTextEn || fullTextId) : (fullTextId || fullTextEn);
-                }
-                if (imgEl && ab.imgUrl && ab.imgUrl.trim() !== '') {
-                    imgEl.src = ab.imgUrl;
+            if (titleEl) {
+                titleEl.innerHTML = currentLang === 'en' ? (ab.titleEn || 'OUR <span>STORY</span>') : (ab.titleId || 'OUR <span>STORY</span>');
+            }
+            if (textEl) {
+                const fullTextId = ab.fullId || ab.subId || '';
+                const fullTextEn = ab.fullEn || ab.subEn || '';
+                textEl.textContent = currentLang === 'en' ? (fullTextEn || fullTextId) : (fullTextId || fullTextEn);
+            }
+            if (imgEl) {
+                if (ab.imgUrl && ab.imgUrl.trim() !== '' && ab.imgUrl !== 'images/about-img.jpg') {
+                    if (imgEl.getAttribute('src') !== ab.imgUrl) imgEl.src = ab.imgUrl;
+                    imgEl.style.display = 'block';
+                    imgEl.style.opacity = '1';
+                } else {
+                    imgEl.style.opacity = '0';
                 }
             }
-            if (cms.footer) {
+            if (cms && cms.footer) {
                 document.getElementById('fBrand').textContent = cms.footer.brand;
                 document.getElementById('fBranches').textContent = cms.footer.branches;
                 const ig = document.getElementById('fIg'); if(ig) { ig.textContent = cms.footer.igName; ig.href = cms.footer.igUrl || '#'; }
@@ -170,6 +194,7 @@
                 document.getElementById('fCardDesc').textContent = currentLang === 'en' ? (cms.footer.cardDescEn || 'Find the nearest booth and studio in your city to capture your special moments today!') : (cms.footer.cardDescId || 'Temukan booth dan studio terdekat di kotamu untuk abadikan momen serumu hari ini!');
                 document.getElementById('fCopy').textContent = cms.footer.copyright;
             }
+            try { lastRenderedSignature = JSON.stringify(cms) + '_' + currentLang; } catch (e) {}
         }
 
         function setLanguage(lang) {
@@ -184,14 +209,18 @@
             applyCMS();
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            setLanguage(currentLang);
+        // Render sinkron instan (0ms) tanpa kedipan
+        setLanguage(currentLang);
+
+        (async () => {
             try {
                 const cloudCms = await OhSnapCloud.pullIfNewer();
-                if (cloudCms) cms = cloudCms;
+                if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
+                    cms = cloudCms;
+                    applyCMS();
+                }
             } catch (e) {}
-            applyCMS();
-        });
+        })();
     </script>
 </body>
 </html>
