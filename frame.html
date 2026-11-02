@@ -127,7 +127,7 @@
         .footer-helpdesk ul { list-style: none; padding: 0; }
         .footer-helpdesk li { margin-bottom: 6px; font-size: 0.95rem; }
         .footer-location-card { background: linear-gradient(145deg, #201f26 0%, #18171d 100%); border: 1px solid rgba(255,20,147,0.3); border-radius: 20px; padding: 35px 30px; text-decoration: none; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .footer-location-card h4 { color: #fff; font-size: 1.25rem; margin-bottom: 12px; }
+        .footer-location-card h4 { color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
         .footer-location-card p { color: #9ca3af; font-size: 0.95rem; margin-bottom: 22px; }
         .location-btn-action { background: var(--primary); color: #fff; padding: 12px 28px; border-radius: 50px; font-weight: 700; }
         .footer-bottom { max-width: 1300px; margin: 40px auto 0; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); text-align: center; font-size: 0.85rem; color: #6b7280; }
@@ -224,6 +224,11 @@
         try { cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
         let lastRenderedSignature = '';
 
+        function escHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         document.getElementById('menuToggle').addEventListener('click', () => {
             document.getElementById('navContainer').classList.toggle('active');
         });
@@ -262,12 +267,12 @@
             document.getElementById('framesGrid').innerHTML = list.map(f => `
                 <div class="slide-item-frame">
                     <div class="frame-card">
-                        ${f.img && f.img.trim() !== '' ? `<img src="${f.img}" alt="${f.title}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-portrait-frame\\'></div>';">` : `<div class="empty-portrait-frame"></div>`}
+                        ${f.img && f.img.trim() !== '' ? `<img src="${escHtml(f.img)}" alt="${escHtml(f.title)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-portrait-frame\\'></div>';">` : `<div class="empty-portrait-frame"></div>`}
                         <div class="frame-info">
                             <div>
-                                <span class="frame-cat">${f.category || 'Frame'}</span>
-                                <h3>${f.title}</h3>
-                                <p>${f.desc || ''}</p>
+                                <span class="frame-cat">${escHtml(f.category || 'Frame')}</span>
+                                <h3>${escHtml(f.title)}</h3>
+                                <p>${escHtml(f.desc || '')}</p>
                             </div>
                         </div>
                     </div>
@@ -309,7 +314,7 @@
         // Render sinkron instan (0ms) tanpa kedipan
         setLanguage(currentLang);
 
-        (async () => {
+        async function syncLatestCMS() {
             try {
                 const cloudCms = await OhSnapCloud.pullIfNewer();
                 if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
@@ -317,7 +322,11 @@
                     applyCMS();
                 }
             } catch (e) {}
-        })();
+        }
+
+        window.addEventListener('storage', () => { syncLatestCMS(); });
+        window.addEventListener('focus', () => { syncLatestCMS(); });
+        syncLatestCMS();
     </script>
 </body>
 </html>

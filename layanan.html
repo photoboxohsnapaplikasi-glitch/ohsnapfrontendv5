@@ -135,7 +135,7 @@
         .footer-helpdesk ul { list-style: none; padding: 0; }
         .footer-helpdesk li { margin-bottom: 6px; font-size: 0.95rem; }
         .footer-location-card { background: linear-gradient(145deg, #201f26 0%, #18171d 100%); border: 1px solid rgba(255,20,147,0.3); border-radius: 20px; padding: 35px 30px; text-decoration: none; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .footer-location-card h4 { color: #fff; font-size: 1.25rem; margin-bottom: 12px; }
+        .footer-location-card h4 { color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
         .footer-location-card p { color: #9ca3af; font-size: 0.95rem; margin-bottom: 22px; }
         .location-btn-action { background: var(--primary); color: #fff; padding: 12px 28px; border-radius: 50px; font-weight: 700; }
         .footer-bottom { max-width: 1300px; margin: 40px auto 0; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); text-align: center; font-size: 0.85rem; color: #6b7280; }
@@ -226,11 +226,15 @@
 
     <script src="cms-cloud.js"></script>
     <script>
-        const API_URL = 'http://localhost:3000/api';
         let currentLang = localStorage.getItem('siteLang') || 'id';
         let cms = null;
         try { cms = JSON.parse(localStorage.getItem('ohsnap_cms_data')); } catch (e) {}
         let lastRenderedSignature = '';
+
+        function escHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
 
         document.getElementById('menuToggle').addEventListener('click', () => {
             document.getElementById('navContainer').classList.toggle('active');
@@ -270,10 +274,10 @@
                 <div class="slide-item-service">
                     <div class="service-card">
                         <div>
-                            ${srv.img && srv.img.trim() !== '' ? `<div class="service-img-box"><img src="${srv.img}" alt="${srv.titleId}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-portrait-service\\'></div>';"></div>` : `<div class="empty-portrait-service"></div>`}
-                            <h3>${currentLang === 'en' ? (srv.titleEn || srv.titleId) : srv.titleId}</h3>
-                            <div class="service-price">${srv.price}</div>
-                            <p>${currentLang === 'en' ? (srv.descEn || srv.descId) : srv.descId}</p>
+                            ${srv.img && srv.img.trim() !== '' ? `<div class="service-img-box"><img src="${escHtml(srv.img)}" alt="${escHtml(srv.titleId)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-portrait-service\\'></div>';"></div>` : `<div class="empty-portrait-service"></div>`}
+                            <h3>${escHtml(currentLang === 'en' ? (srv.titleEn || srv.titleId) : srv.titleId)}</h3>
+                            <div class="service-price">${escHtml(srv.price)}</div>
+                            <p>${escHtml(currentLang === 'en' ? (srv.descEn || srv.descId) : srv.descId)}</p>
                         </div>
                     </div>
                 </div>
@@ -314,7 +318,7 @@
         // Render sinkron instan (0ms) tanpa kedipan
         setLanguage(currentLang);
 
-        (async () => {
+        async function syncLatestCMS() {
             try {
                 const cloudCms = await OhSnapCloud.pullIfNewer();
                 if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
@@ -322,7 +326,11 @@
                     applyCMS();
                 }
             } catch (e) {}
-        })();
+        }
+
+        window.addEventListener('storage', () => { syncLatestCMS(); });
+        window.addEventListener('focus', () => { syncLatestCMS(); });
+        syncLatestCMS();
     </script>
 </body>
 </html>

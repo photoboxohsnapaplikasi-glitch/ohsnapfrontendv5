@@ -61,7 +61,7 @@
         .footer-location-card { background: linear-gradient(145deg, #201f26 0%, #18171d 100%); border: 1px solid rgba(255,20,147,0.3); border-radius: 20px; padding: 35px 30px; text-decoration: none; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .footer-location-card h4 { color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
         .footer-location-card p { color: #9ca3af; font-size: 0.95rem; margin-bottom: 22px; }
-        .location-btn-action { background: var(--primary); color: #fff; padding: 12px 28px; border-radius: 50px; font-weight: 700; font-size: 0.95rem; }
+        .location-btn-action { background: var(--primary); color: #fff; padding: 12px 28px; border-radius: 50px; font-weight: 700; }
         .footer-bottom { max-width: 1300px; margin: 40px auto 0; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); text-align: center; font-size: 0.85rem; color: #6b7280; }
 
         @media screen and (max-width: 768px) {
@@ -202,17 +202,14 @@
             localStorage.setItem('siteLang', lang);
             document.getElementById('btnEN').classList.toggle('active', lang === 'en');
             document.getElementById('btnID').classList.toggle('active', lang === 'id');
-            document.querySelectorAll('[data-en]').forEach(el => {
-                const text = el.getAttribute('data-' + lang);
-                if (text !== null) el.innerHTML = text;
-            });
+            document.querySelectorAll('[data-en]').forEach(el => { el.innerHTML = el.getAttribute('data-' + lang); });
             applyCMS();
         }
 
         // Render sinkron instan (0ms) tanpa kedipan
         setLanguage(currentLang);
 
-        (async () => {
+        async function syncLatestCMS() {
             try {
                 const cloudCms = await OhSnapCloud.pullIfNewer();
                 if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
@@ -220,7 +217,11 @@
                     applyCMS();
                 }
             } catch (e) {}
-        })();
+        }
+
+        window.addEventListener('storage', () => { syncLatestCMS(); });
+        window.addEventListener('focus', () => { syncLatestCMS(); });
+        syncLatestCMS();
     </script>
 </body>
 </html>
