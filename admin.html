@@ -1487,7 +1487,12 @@
 
                 const emailSub = "Link Softcopy Foto OH SNAP! Photobox";
                 const emailBody = `Halo kak ${namaCust},\n\nBerikut kami kirimkan link softcopy foto kamu:\n\nTerima kasih telah berkunjung ke OH SNAP! Photobox!`;
-                const emailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(customerEmail)}&su=${encodeURIComponent(emailSub)}&body=${encodeURIComponent(emailBody)}`;
+                const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                const cleanEmail = String(customerEmail || '').trim();
+                const emailUrl = isMobileDevice
+                    ? `mailto:${cleanEmail}?subject=${encodeURIComponent(emailSub)}&body=${encodeURIComponent(emailBody)}`
+                    : `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(cleanEmail)}&su=${encodeURIComponent(emailSub)}&body=${encodeURIComponent(emailBody)}`;
+                const emailTargetAttr = isMobileDevice ? '' : 'target="_blank"';
 
                 tb.innerHTML += `
                     <tr class="${isSudah?'row-sudah':'row-belum'}">
@@ -1504,7 +1509,7 @@
                         <td>
                             <div class="action-btns-group">
                                 <a href="${escAttr(waUrl)}" target="_blank" class="btn-action-wa">💬 WA</a>
-                                <a href="${escAttr(emailUrl)}" target="_blank" class="btn-action-email">✉️ Email</a>
+                                <a href="${escAttr(emailUrl)}" ${emailTargetAttr} class="btn-action-email">✉️ Email</a>
                             </div>
                         </td>
                         <td><button class="btn-toggle-status ${isSudah?'btn-status-sudah':'btn-status-belum'}" onclick="toggleStatus(${i},'${isSudah ? 'Sudah' : 'Belum'}')">${isSudah?'✔ SUDAH':'❗ BELUM'}</button></td>
