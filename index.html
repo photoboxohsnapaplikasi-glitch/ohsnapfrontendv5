@@ -352,9 +352,18 @@
                 }
             },
             titles: { 
-                titlePromoId: 'Promo <span>Spesial</span> Bulan Ini', subPromoId: 'Jangan lewatkan penawaran menarik di berbagai cabang OH SNAP! Photobox', 
-                titleStudioId: 'Suasana <span>Studio & Booth</span>', subStudioId: 'Intip keseruan dan estetika bilik tematik kami di berbagai kota', 
-                titleVideoId: 'Keseruan Sobat <span>OH SNAP!</span>', subVideoId: 'Video feed momen seru pelanggan kami di bilik photobox' 
+                titlePromoId: 'Promo <span>Spesial</span> Bulan Ini',
+                titlePromoEn: 'This Month\'s <span>Special</span> Promo',
+                subPromoId: 'Jangan lewatkan penawaran menarik di berbagai cabang OH SNAP! Photobox',
+                subPromoEn: 'Don\'t miss exciting offers at various OH SNAP! Photobox branches',
+                titleStudioId: 'Suasana <span>Studio & Booth</span>',
+                titleStudioEn: '<span>Studio & Booth</span> Vibes',
+                subStudioId: 'Intip keseruan dan estetika bilik tematik kami di berbagai kota',
+                subStudioEn: 'Take a peek at the fun and aesthetics of our thematic booths across cities',
+                titleVideoId: 'Keseruan Sobat <span>OH SNAP!</span>',
+                titleVideoEn: 'Fun Moments with <span>OH SNAP!</span>',
+                subVideoId: 'Video feed momen seru pelanggan kami di bilik photobox',
+                subVideoEn: 'Video feed of our customers\' fun moments in the photobox booth'
             },
             studios: [
                 { title: 'Booth Train Thematic', desc: 'Desain kabin kereta estetik', img: '' },
@@ -481,13 +490,15 @@
                     }
                 }
             }
-            const t = cms.titles || defaultCMS.titles;
-            document.getElementById('secPromoTitle').innerHTML = t.titlePromoId || defaultCMS.titles.titlePromoId;
-            document.getElementById('secPromoSub').textContent = t.subPromoId || defaultCMS.titles.subPromoId;
-            document.getElementById('secStudioTitle').innerHTML = t.titleStudioId || defaultCMS.titles.titleStudioId;
-            document.getElementById('secStudioSub').textContent = t.subStudioId || defaultCMS.titles.subStudioId;
-            document.getElementById('secVideoTitle').innerHTML = t.titleVideoId || defaultCMS.titles.titleVideoId;
-            document.getElementById('secVideoSub').textContent = t.subVideoId || defaultCMS.titles.subVideoId;
+
+            const t = Object.assign({}, defaultCMS.titles, (cms && cms.titles) ? cms.titles : {});
+            const isEn = currentLang === 'en';
+            document.getElementById('secPromoTitle').innerHTML = isEn ? (t.titlePromoEn || t.titlePromoId || defaultCMS.titles.titlePromoEn) : (t.titlePromoId || defaultCMS.titles.titlePromoId);
+            document.getElementById('secPromoSub').textContent = isEn ? (t.subPromoEn || t.subPromoId || defaultCMS.titles.subPromoEn) : (t.subPromoId || defaultCMS.titles.subPromoId);
+            document.getElementById('secStudioTitle').innerHTML = isEn ? (t.titleStudioEn || t.titleStudioId || defaultCMS.titles.titleStudioEn) : (t.titleStudioId || defaultCMS.titles.titleStudioId);
+            document.getElementById('secStudioSub').textContent = isEn ? (t.subStudioEn || t.subStudioId || defaultCMS.titles.subStudioEn) : (t.subStudioId || defaultCMS.titles.subStudioId);
+            document.getElementById('secVideoTitle').innerHTML = isEn ? (t.titleVideoEn || t.titleVideoId || defaultCMS.titles.titleVideoEn) : (t.titleVideoId || defaultCMS.titles.titleVideoId);
+            document.getElementById('secVideoSub').textContent = isEn ? (t.subVideoEn || t.subVideoId || defaultCMS.titles.subVideoEn) : (t.subVideoId || defaultCMS.titles.subVideoId);
 
             // Render Studios (hanya jika data studio berubah agar gambar tidak berkedip)
             const studiosList = (cms.studios && cms.studios.length > 0) ? cms.studios : defaultCMS.studios;
@@ -608,27 +619,40 @@
         }
 
         async function syncLatestCMS() {
+            let newestLocal = null;
             const localSaved = localStorage.getItem('ohsnap_cms_data');
             if (localSaved) {
                 try {
                     const parsed = JSON.parse(localSaved);
-                    if (parsed && JSON.stringify(parsed) + '_' + currentLang !== lastRenderedSignature) {
-                        cms = parsed;
-                        setLanguage(currentLang);
+                    if (parsed) {
+                        newestLocal = parsed;
+                        if (JSON.stringify(parsed) + '_' + currentLang !== lastRenderedSignature) {
+                            cms = parsed;
+                            setLanguage(currentLang);
+                        }
                     }
                 } catch (e) {}
             }
             const idbBackup = await getMediaFromIDB('cms_full_backup');
-            if (idbBackup && (!cms.lastUpdated || (idbBackup.lastUpdated && idbBackup.lastUpdated > Number(cms.lastUpdated || 0)))) {
+            if (idbBackup && (!newestLocal || Number(idbBackup.lastUpdated || 0) > Number(newestLocal.lastUpdated || 0))) {
+                newestLocal = idbBackup;
                 if (JSON.stringify(idbBackup) + '_' + currentLang !== lastRenderedSignature) {
                     cms = idbBackup;
                     setLanguage(currentLang);
                 }
             }
             const cloudCms = await OhSnapCloud.pullIfNewer();
-            if (cloudCms && JSON.stringify(cloudCms) + '_' + currentLang !== lastRenderedSignature) {
-                cms = cloudCms;
-                setLanguage(currentLang);
+            if (cloudCms) {
+                const cloudTime = Number(cloudCms.lastUpdated || 0);
+                const localTime = Number((newestLocal && newestLocal.lastUpdated) || 0);
+                const chosen = (newestLocal && localTime > cloudTime) ? newestLocal : cloudCms;
+                if (chosen === newestLocal && localTime > cloudTime) {
+                    try { localStorage.setItem('ohsnap_cms_data', JSON.stringify(newestLocal)); } catch (e) {}
+                }
+                if (JSON.stringify(chosen) + '_' + currentLang !== lastRenderedSignature) {
+                    cms = chosen;
+                    setLanguage(currentLang);
+                }
             } else if (!lastRenderedSignature) {
                 setLanguage(currentLang);
             }
