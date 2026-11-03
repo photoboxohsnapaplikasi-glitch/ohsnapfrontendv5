@@ -47,7 +47,7 @@
 
         .story-card h1 { font-size: 2.3rem; font-weight: 800; margin-bottom: 20px; text-align: center; color: var(--secondary); }
         .story-card h1 span { color: var(--primary); }
-        .story-card .story-content { font-size: 1.02rem; color: #4b5563; margin-bottom: 18px; text-align: justify; white-space: pre-line; line-height: 1.8; }
+        .story-card .story-content { font-size: 1.02rem; color: #4b5563; margin-bottom: 18px; text-align: left; white-space: pre-line; line-height: 1.8; overflow-wrap: break-word; word-spacing: normal; }
 
         footer { background-color: var(--footer-bg); color: #b5b5bc; padding: 60px 8% 30px; border-top: 2px solid #fbcfe8; margin-top: 60px; }
         .footer-content { max-width: 1300px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; }
@@ -149,6 +149,20 @@
             document.getElementById('navContainer').classList.toggle('active');
         });
 
+
+        // Merapikan spasi setelah tanda baca (mis. "cepat,momen" -> "cepat, momen", "saja.OH" -> "saja. OH")
+        // Token yang mirip URL / email / nama file dibiarkan apa adanya.
+        function rapikanSpasi(text) {
+            if (!text) return '';
+            return String(text).split(/(\s+)/).map(function (tok) {
+                if (!tok || /^\s+$/.test(tok)) return tok;
+                if (/^(https?:|www\.)|@|\.(com|co|id|net|org|io|html|jpg|jpeg|png|webp)(\b|\/|$)/i.test(tok)) return tok;
+                return tok
+                    .replace(/([,;!?])(?=[A-Za-z\u00C0-\u024F])/g, '$1 ')
+                    .replace(/([A-Za-z\u00C0-\u024F]{2,})\.(?=[A-Za-z\u00C0-\u024F])/g, '$1. ');
+            }).join('');
+        }
+
         function applyCMS() {
             if (cms && cms.colors) {
                 document.documentElement.style.setProperty('--primary', cms.colors.primary || '#ff1493');
@@ -173,7 +187,7 @@
             if (textEl) {
                 const fullTextId = ab.fullId || ab.subId || '';
                 const fullTextEn = ab.fullEn || ab.subEn || '';
-                textEl.textContent = currentLang === 'en' ? (fullTextEn || fullTextId) : (fullTextId || fullTextEn);
+                textEl.textContent = rapikanSpasi(currentLang === 'en' ? (fullTextEn || fullTextId) : (fullTextId || fullTextEn));
             }
             if (imgEl) {
                 if (ab.imgUrl && ab.imgUrl.trim() !== '' && ab.imgUrl !== 'images/about-img.jpg') {
