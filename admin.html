@@ -269,8 +269,14 @@
                 <button class="btn-add" onclick="addVideoItem()">+ Tambah Video</button>
             </div>
             <div class="form-grid" style="background:#fdf2f8; padding:15px; border-radius:10px; border:1px solid #fbcfe8; margin-bottom:20px;">
-                <div class="form-group"><label>Judul Seksi Video (ID)</label><input type="text" id="titleVideoId" oninput="updateTitlesState()"></div>
-                <div class="form-group"><label>Subjudul Seksi Video (ID)</label><input type="text" id="subVideoId" oninput="updateTitlesState()"></div>
+                <div>
+                    <div class="form-group"><label>Judul Seksi Video (ID)</label><input type="text" id="titleVideoId" oninput="updateTitlesState()"></div>
+                    <div class="form-group" style="margin-bottom:0;"><label>Judul Seksi Video (EN)</label><input type="text" id="titleVideoEn" oninput="updateTitlesState()"></div>
+                </div>
+                <div>
+                    <div class="form-group"><label>Subjudul Seksi Video (ID)</label><input type="text" id="subVideoId" oninput="updateTitlesState()"></div>
+                    <div class="form-group" style="margin-bottom:0;"><label>Subjudul Seksi Video (EN)</label><input type="text" id="subVideoEn" oninput="updateTitlesState()"></div>
+                </div>
             </div>
             <div id="videoListContainer" class="dynamic-list"></div>
         </section>
@@ -282,8 +288,14 @@
                 <button class="btn-add" onclick="addStudioItem()">+ Tambah Studio</button>
             </div>
             <div class="form-grid" style="background:#fdf2f8; padding:15px; border-radius:10px; border:1px solid #fbcfe8; margin-bottom:20px;">
-                <div class="form-group"><label>Judul Seksi Studio (ID)</label><input type="text" id="titleStudioId" oninput="updateTitlesState()"></div>
-                <div class="form-group"><label>Subjudul Seksi Studio (ID)</label><input type="text" id="subStudioId" oninput="updateTitlesState()"></div>
+                <div>
+                    <div class="form-group"><label>Judul Seksi Studio (ID)</label><input type="text" id="titleStudioId" oninput="updateTitlesState()"></div>
+                    <div class="form-group" style="margin-bottom:0;"><label>Judul Seksi Studio (EN)</label><input type="text" id="titleStudioEn" oninput="updateTitlesState()"></div>
+                </div>
+                <div>
+                    <div class="form-group"><label>Subjudul Seksi Studio (ID)</label><input type="text" id="subStudioId" oninput="updateTitlesState()"></div>
+                    <div class="form-group" style="margin-bottom:0;"><label>Subjudul Seksi Studio (EN)</label><input type="text" id="subStudioEn" oninput="updateTitlesState()"></div>
+                </div>
             </div>
             <div id="studioListContainer" class="dynamic-list"></div>
         </section>
@@ -295,8 +307,14 @@
                 <button class="btn-add" onclick="addPromoItem()">+ Tambah Promo</button>
             </div>
             <div class="form-grid" style="background:#fdf2f8; padding:15px; border-radius:10px; border:1px solid #fbcfe8; margin-bottom:20px;">
-                <div class="form-group"><label>Judul Seksi Promo (ID)</label><input type="text" id="titlePromoId" oninput="updateTitlesState()"></div>
-                <div class="form-group"><label>Subjudul Seksi Promo (ID)</label><input type="text" id="subPromoId" oninput="updateTitlesState()"></div>
+                <div>
+                    <div class="form-group"><label>Judul Seksi Promo (ID)</label><input type="text" id="titlePromoId" oninput="updateTitlesState()"></div>
+                    <div class="form-group" style="margin-bottom:0;"><label>Judul Seksi Promo (EN)</label><input type="text" id="titlePromoEn" oninput="updateTitlesState()"></div>
+                </div>
+                <div>
+                    <div class="form-group"><label>Subjudul Seksi Promo (ID)</label><input type="text" id="subPromoId" oninput="updateTitlesState()"></div>
+                    <div class="form-group" style="margin-bottom:0;"><label>Subjudul Seksi Promo (EN)</label><input type="text" id="subPromoEn" oninput="updateTitlesState()"></div>
+                </div>
             </div>
             <div id="promoListContainer" class="dynamic-list"></div>
         </section>
@@ -600,9 +618,18 @@
                 lokasi: { titleId: 'Lokasi <span>Studio</span>', titleEn: 'Our <span>Locations</span>', subId: 'Kunjungi cabang terdekat kami di kotamu.', subEn: 'Visit branch.', imgUrl: '' }
             },
             titles: { 
-                titlePromoId: 'Promo <span>Spesial</span> Bulan Ini', subPromoId: 'Jangan lewatkan penawaran menarik di berbagai cabang OH SNAP! Photobox', 
-                titleStudioId: 'Suasana <span>Studio & Booth</span>', subStudioId: 'Intip keseruan dan estetika bilik tematik kami di berbagai kota', 
-                titleVideoId: 'Keseruan Sobat <span>OH SNAP!</span>', subVideoId: 'Video feed momen seru pelanggan kami di bilik photobox'
+                titlePromoId: 'Promo <span>Spesial</span> Bulan Ini',
+                titlePromoEn: 'This Month\'s <span>Special</span> Promo',
+                subPromoId: 'Jangan lewatkan penawaran menarik di berbagai cabang OH SNAP! Photobox',
+                subPromoEn: 'Don\'t miss exciting offers at various OH SNAP! Photobox branches',
+                titleStudioId: 'Suasana <span>Studio & Booth</span>',
+                titleStudioEn: '<span>Studio & Booth</span> Vibes',
+                subStudioId: 'Intip keseruan dan estetika bilik tematik kami di berbagai kota',
+                subStudioEn: 'Take a peek at the fun and aesthetics of our thematic booths across cities',
+                titleVideoId: 'Keseruan Sobat <span>OH SNAP!</span>',
+                titleVideoEn: 'Fun Moments with <span>OH SNAP!</span>',
+                subVideoId: 'Video feed momen seru pelanggan kami di bilik photobox',
+                subVideoEn: 'Video feed of our customers\' fun moments in the photobox booth'
             },
             studios: [
                 { title: 'Booth Train Thematic', desc: 'Desain kabin kereta estetik', img: '' },
@@ -713,6 +740,7 @@
 
         let cmsData = loadSavedCMS();
         let activeBannerPageKey = sessionStorage.getItem('activeBannerPage') || 'home';
+        let autoCloudSyncTimer = null;
 
         function persistData() {
             cmsData.lastUpdated = Date.now();
@@ -720,6 +748,14 @@
             try {
                 localStorage.setItem('ohsnap_cms_data', JSON.stringify(cmsData));
             } catch (e) {}
+            if (autoCloudSyncTimer) clearTimeout(autoCloudSyncTimer);
+            autoCloudSyncTimer = setTimeout(async () => {
+                try {
+                    const saved = await OhSnapCloud.save(cleanDataForCloud(cmsData));
+                    if (saved && saved.lastUpdated) cmsData.lastUpdated = saved.lastUpdated;
+                    markSynced(cmsData);
+                } catch (e) {}
+            }, 600);
         }
 
         function toggleMobileSidebar() { document.getElementById('sidebarEl').classList.toggle('active'); }
@@ -1083,23 +1119,49 @@
 
         function updateTitlesState() {
             if (!cmsData.titles) cmsData.titles = {};
-            cmsData.titles.titleVideoId = document.getElementById('titleVideoId').value;
-            cmsData.titles.subVideoId = document.getElementById('subVideoId').value;
-            cmsData.titles.titleStudioId = document.getElementById('titleStudioId').value;
-            cmsData.titles.subStudioId = document.getElementById('subStudioId').value;
-            cmsData.titles.titlePromoId = document.getElementById('titlePromoId').value;
-            cmsData.titles.subPromoId = document.getElementById('subPromoId').value;
+            const getVal = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value : '';
+            };
+            cmsData.titles.titleVideoId = getVal('titleVideoId');
+            cmsData.titles.titleVideoEn = getVal('titleVideoEn');
+            cmsData.titles.subVideoId = getVal('subVideoId');
+            cmsData.titles.subVideoEn = getVal('subVideoEn');
+
+            cmsData.titles.titleStudioId = getVal('titleStudioId');
+            cmsData.titles.titleStudioEn = getVal('titleStudioEn');
+            cmsData.titles.subStudioId = getVal('subStudioId');
+            cmsData.titles.subStudioEn = getVal('subStudioEn');
+
+            cmsData.titles.titlePromoId = getVal('titlePromoId');
+            cmsData.titles.titlePromoEn = getVal('titlePromoEn');
+            cmsData.titles.subPromoId = getVal('subPromoId');
+            cmsData.titles.subPromoEn = getVal('subPromoEn');
             persistData();
         }
 
         function loadTitlesState() {
-            if (!cmsData.titles) cmsData.titles = defaultCMS.titles;
-            document.getElementById('titleVideoId').value = cmsData.titles.titleVideoId !== undefined ? cmsData.titles.titleVideoId : '';
-            document.getElementById('subVideoId').value = cmsData.titles.subVideoId !== undefined ? cmsData.titles.subVideoId : '';
-            document.getElementById('titleStudioId').value = cmsData.titles.titleStudioId !== undefined ? cmsData.titles.titleStudioId : '';
-            document.getElementById('subStudioId').value = cmsData.titles.subStudioId !== undefined ? cmsData.titles.subStudioId : '';
-            document.getElementById('titlePromoId').value = cmsData.titles.titlePromoId !== undefined ? cmsData.titles.titlePromoId : '';
-            document.getElementById('subPromoId').value = cmsData.titles.subPromoId !== undefined ? cmsData.titles.subPromoId : '';
+            if (!cmsData.titles) cmsData.titles = JSON.parse(JSON.stringify(defaultCMS.titles));
+            const t = cmsData.titles;
+            const d = defaultCMS.titles;
+            const setVal = (id, val, fallback) => {
+                const el = document.getElementById(id);
+                if (el) el.value = (val !== undefined && val !== null) ? val : (fallback || '');
+            };
+            setVal('titleVideoId', t.titleVideoId, d.titleVideoId);
+            setVal('titleVideoEn', t.titleVideoEn, d.titleVideoEn);
+            setVal('subVideoId', t.subVideoId, d.subVideoId);
+            setVal('subVideoEn', t.subVideoEn, d.subVideoEn);
+
+            setVal('titleStudioId', t.titleStudioId, d.titleStudioId);
+            setVal('titleStudioEn', t.titleStudioEn, d.titleStudioEn);
+            setVal('subStudioId', t.subStudioId, d.subStudioId);
+            setVal('subStudioEn', t.subStudioEn, d.subStudioEn);
+
+            setVal('titlePromoId', t.titlePromoId, d.titlePromoId);
+            setVal('titlePromoEn', t.titlePromoEn, d.titlePromoEn);
+            setVal('subPromoId', t.subPromoId, d.subPromoId);
+            setVal('subPromoEn', t.subPromoEn, d.subPromoEn);
         }
 
         function renderVideos() {
