@@ -754,26 +754,30 @@
             if (event) event.preventDefault();
         }
 
-        function clearBannerImg() {
+        async function clearBannerImg() {
             const page = document.getElementById('bannerPageSelect').value;
             if (!cmsData.banners[page]) cmsData.banners[page] = {};
             const oldUrl = cmsData.banners[page].imgUrl;
             cmsData.banners[page].imgUrl = '';
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (page === 'about' && cmsData.banners.home) {
+                cmsData.banners.home.aboutImgUrl = '';
+                const quickEl = document.getElementById('aboutQuickImgUrl');
+                if (quickEl) quickEl.value = '';
+            }
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             document.getElementById('bannerImgUrl').value = '';
             const fileEl = document.getElementById('bannerFileInput');
             if (fileEl) fileEl.value = '';
             renderBannerPreview();
-            persistData();
-            showToast('Gambar banner dikosongkan!');
+            await autoSyncAfterUpload('🗑️ Gambar banner dikosongkan');
         }
 
-        function clearAboutImg() {
+        async function clearAboutImg() {
             if (!cmsData.banners.about) cmsData.banners.about = {};
             const oldUrl = cmsData.banners.about.imgUrl;
             cmsData.banners.about.imgUrl = '';
             if (cmsData.banners.home) cmsData.banners.home.aboutImgUrl = '';
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             document.getElementById('aboutQuickImgUrl').value = '';
             const fileEl = document.getElementById('aboutQuickFileInput');
             if (fileEl) fileEl.value = '';
@@ -781,8 +785,7 @@
                 document.getElementById('bannerImgUrl').value = '';
             }
             renderBannerPreview();
-            persistData();
-            showToast('Foto About Story dikosongkan!');
+            await autoSyncAfterUpload('🗑️ Foto About Story dikosongkan');
         }
 
         function updateBannerImgManual(val) {
@@ -831,13 +834,12 @@
             }
         }
 
-        function clearArrayImg(arr, idx, prop) {
+        async function clearArrayImg(arr, idx, prop) {
             const oldUrl = cmsData[arr][idx][prop];
             cmsData[arr][idx][prop] = '';
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
-            persistData();
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             initAllRenders();
-            showToast('Dikosongkan!');
+            await autoSyncAfterUpload('🗑️ Media dikosongkan');
         }
 
         function togglePasswordVisibility(inputId, btnEl) {
@@ -885,7 +887,7 @@
                 if (page === 'about' && cmsData.banners.home) {
                     cmsData.banners.home.aboutImgUrl = publicUrl;
                 }
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
                 document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
                 inputEl.value = '';
                 renderBannerPreview();
@@ -906,7 +908,7 @@
                 const publicUrl = await uploadImageToCloud(file);
                 cmsData.banners.about.imgUrl = publicUrl;
                 cmsData.banners.home.aboutImgUrl = publicUrl;
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
                 document.getElementById('aboutQuickImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
                 if (document.getElementById('bannerPageSelect').value === 'about') {
                     document.getElementById('bannerImgUrl').value = publicUrl.startsWith('data:') ? '' : publicUrl;
@@ -927,7 +929,7 @@
                 const oldUrl = cmsData[arrName][index][propName];
                 const publicUrl = await uploadImageToCloud(file);
                 cmsData[arrName][index][propName] = publicUrl;
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
                 inputEl.value = '';
                 initAllRenders();
                 await autoSyncAfterUpload('✅ Foto berhasil diupload');
@@ -951,7 +953,7 @@
                 const publicUrl = await OhSnapCloud.upload(file, 'video', ext);
                 cmsData[arrName][index][propName] = publicUrl;
                 cmsData[arrName][index].fileName = file.name;
-                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+                if (oldUrl && oldUrl !== publicUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
                 inputEl.value = '';
                 initAllRenders();
                 await autoSyncAfterUpload('✅ Video berhasil diupload');
@@ -1135,13 +1137,13 @@
             }, 100);
         }
         function addVideoItem() { cmsData.videos.push({title:'Baru', url:''}); persistData(); renderVideos(); }
-        function removeVideo(i) {
+        async function removeVideo(i) {
             if (cmsData.videos.length <= 5) return alert('Batas minimal Video Feed adalah 5!');
             const oldUrl = cmsData.videos[i] && cmsData.videos[i].url;
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             cmsData.videos.splice(i, 1);
-            persistData();
             renderVideos();
+            await autoSyncAfterUpload('🗑️ Video dihapus');
         }
         function moveVideo(index, dir) { const t = index + dir; if(t<0||t>=cmsData.videos.length)return; const tmp=cmsData.videos[index]; cmsData.videos[index]=cmsData.videos[t]; cmsData.videos[t]=tmp; persistData(); renderVideos(); }
 
@@ -1162,13 +1164,13 @@
             });
         }
         function addStudioItem() { cmsData.studios.push({title:'Studio Baru', desc:'', img:''}); persistData(); renderStudios(); }
-        function removeStudio(i) {
+        async function removeStudio(i) {
             if (cmsData.studios.length <= 4) return alert('Batas minimal Suasana Studio adalah 4!');
             const oldUrl = cmsData.studios[i] && cmsData.studios[i].img;
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             cmsData.studios.splice(i, 1);
-            persistData();
             renderStudios();
+            await autoSyncAfterUpload('🗑️ Studio dihapus');
         }
         function moveStudio(index, dir) { const t = index + dir; if(t<0||t>=cmsData.studios.length)return; const tmp=cmsData.studios[index]; cmsData.studios[index]=cmsData.studios[t]; cmsData.studios[t]=tmp; persistData(); renderStudios(); }
 
@@ -1190,13 +1192,13 @@
             });
         }
         function addPromoItem() { cmsData.promos.push({title:'Promo Baru', badge:'PROMO', desc:'', img:''}); persistData(); renderPromos(); }
-        function removePromo(i) {
+        async function removePromo(i) {
             if (cmsData.promos.length <= 3) return alert('Batas minimal Kelola Promo adalah 3!');
             const oldUrl = cmsData.promos[i] && cmsData.promos[i].img;
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             cmsData.promos.splice(i, 1);
-            persistData();
             renderPromos();
+            await autoSyncAfterUpload('🗑️ Promo dihapus');
         }
         function movePromo(index, dir) { const t = index + dir; if(t<0||t>=cmsData.promos.length)return; const tmp=cmsData.promos[index]; cmsData.promos[index]=cmsData.promos[t]; cmsData.promos[t]=tmp; persistData(); renderPromos(); }
 
@@ -1230,13 +1232,13 @@
             });
         }
         function addFrameItem() { if(!cmsData.frames) cmsData.frames=[]; cmsData.frames.push({title:'Frame Baru', category:'New', desc:'', img:''}); persistData(); renderFrames(); }
-        function removeFrame(i) {
+        async function removeFrame(i) {
             if (cmsData.frames.length <= 5) return alert('Batas minimal Frame Layout adalah 5!');
             const oldUrl = cmsData.frames[i] && cmsData.frames[i].img;
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             cmsData.frames.splice(i, 1);
-            persistData();
             renderFrames();
+            await autoSyncAfterUpload('🗑️ Frame dihapus');
         }
         function moveFrame(index, dir) { const t = index + dir; if(t<0||t>=cmsData.frames.length)return; const tmp=cmsData.frames[index]; cmsData.frames[index]=cmsData.frames[t]; cmsData.frames[t]=tmp; persistData(); renderFrames(); }
 
@@ -1270,13 +1272,13 @@
             });
         }
         function addServiceItem() { if(!cmsData.services) cmsData.services=[]; cmsData.services.push({titleId:'Layanan Baru', price:'Rp 0', descId:'', img:''}); persistData(); renderServices(); }
-        function removeSrv(i) {
+        async function removeSrv(i) {
             if (cmsData.services.length <= 3) return alert('Batas minimal Layanan adalah 3!');
             const oldUrl = cmsData.services[i] && cmsData.services[i].img;
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             cmsData.services.splice(i, 1);
-            persistData();
             renderServices();
+            await autoSyncAfterUpload('🗑️ Layanan dihapus');
         }
         function moveService(index, dir) { const t = index + dir; if(t<0||t>=cmsData.services.length)return; const tmp=cmsData.services[index]; cmsData.services[index]=cmsData.services[t]; cmsData.services[t]=tmp; persistData(); renderServices(); }
 
@@ -1299,13 +1301,13 @@
             });
         }
         function addLocationItem() { cmsData.locations.push({name:'Cabang Baru', floor:'Lt.1', hours:'10.00 - 22.00', mapUrl:'', img:''}); persistData(); renderLocations(); }
-        function removeLoc(i) {
+        async function removeLoc(i) {
             if (cmsData.locations.length <= 5) return alert('Batas minimal Lokasi Cabang adalah 5!');
             const oldUrl = cmsData.locations[i] && cmsData.locations[i].img;
-            if (oldUrl && OhSnapCloud.removeFile) OhSnapCloud.removeFile(oldUrl);
+            if (oldUrl && OhSnapCloud.removeFile) await OhSnapCloud.removeFile(oldUrl);
             cmsData.locations.splice(i, 1);
-            persistData();
             renderLocations();
+            await autoSyncAfterUpload('🗑️ Lokasi cabang dihapus');
         }
         function moveLocation(index, dir) { const t = index + dir; if(t<0||t>=cmsData.locations.length)return; const tmp=cmsData.locations[index]; cmsData.locations[index]=cmsData.locations[t]; cmsData.locations[t]=tmp; persistData(); renderLocations(); }
 
