@@ -1,26 +1,27 @@
--- Jalankan di Supabase Dashboard > SQL Editor (sekali saja)
-
--- 1) Tabel data CMS
+-- 1. Pastikan tabel cms_settings bebas hambatan RLS
 create table if not exists public.cms_settings (
   id int primary key,
   data jsonb not null,
   updated_at timestamptz default now()
 );
-alter table public.cms_settings enable row level security;
+alter table public.cms_settings disable row level security;
+grant all on table public.cms_settings to anon, authenticated, service_role;
 
-drop policy if exists "cms public read"   on public.cms_settings;
-drop policy if exists "cms public insert" on public.cms_settings;
-drop policy if exists "cms public update" on public.cms_settings;
-create policy "cms public read"   on public.cms_settings for select using (true);
-create policy "cms public insert" on public.cms_settings for insert with check (id = 1);
-create policy "cms public update" on public.cms_settings for update using (id = 1) with check (id = 1);
+-- 2. Buat & aktifkan bucket ohsnap-media (Public, maks 50MB per file sesuai batas Supabase Free 1GB)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('ohsnap-media', 'ohsnap-media', true, 52428800, null)
+on conflict (id) do update set 
+  public = true, 
+  file_size_limit = 52428800, 
+  allowed_mime_types = null;
 
--- 2) Bucket penyimpanan foto & video (public agar bisa tampil di semua device)
-insert into storage.buckets (id, name, public)
-values ('ohsnap-media', 'ohsnap-media', true)
-on conflict (id) do update set public = true;
-
-drop policy if exists "media public read"   on storage.objects;
+-- 3. Berikan izin penuh (Read, Upload, Update/Upsert, Delete) agar upload & hapus file lama berjalan lancar
+drop policy if exists "media public read" on storage.objects;
 drop policy if exists "media public upload" on storage.objects;
-create policy "media public read"   on storage.objects for select using (bucket_id = 'ohsnap-media');
-create policy "media public upload" on storage.objects for insert with check (bucket_id = 'ohsnap-media');
+drop policy if exists "media public update" on storage.objects;
+drop policy if exists "media public delete" on storage.objects;
+
+create policy "media public read" on storage.objects for select to public using (bucket_id = 'ohsnap-media');
+create policy "media public upload" on storage.objects for insert to public with check (bucket_id = 'ohsnap-media');
+create policy "media public update" on storage.objects for update to public using (bucket_id = 'ohsnap-media');
+create policy "media public delete" on storage.objects for delete to public using (bucket_id = 'ohsnap-media');
